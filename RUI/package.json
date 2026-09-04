@@ -1,0 +1,9 @@
+{
+  "name": "com.redizit.rui",
+  "version": "1.0.0",
+  "displayName": "RUI",
+  "unity": "6000.0",
+  "dependencies": {
+    "com.redizit.reactive": "1.0.0"
+  }
+}
