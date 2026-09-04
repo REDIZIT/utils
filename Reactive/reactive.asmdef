@@ -1,6 +1,5 @@
 {
   "name": "reactive",
-  "rootNamespace": "Reactive",
   "references": [
   ],
   "includePlatforms": [],
