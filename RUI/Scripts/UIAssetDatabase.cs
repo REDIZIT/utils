@@ -64,7 +64,7 @@ namespace InGame.UI
                 }
             }
 
-            // Debug.Log($"<color=cyan>[UIAssetDatabase]</color> Сканирование завершено. Зарегистрировано шаблонов: {canvasService.templates.Count} at '{rootFolderPath}'");
+            Debug.Log($"<color=cyan>[UIAssetDatabase]</color> Сканирование завершено. Зарегистрировано шаблонов: ({canvasService.templates.Count}):\n{canvasService.templates.ToSepString(t => t.Key.Name, "\n")}");
         }
 
         public void LoadAndProcessFile(string path)
