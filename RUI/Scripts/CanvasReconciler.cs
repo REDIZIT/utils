@@ -79,6 +79,11 @@ namespace InGame.UI
 		            // Передаем assetDb в ApplyComponentProperty!
 		            ApplyComponentProperty(existingComp, prop, assetDb);
 		        }
+		        
+		        if (compType == typeof(LayoutGroup))
+		        {
+			        element.SetComposer(new Stack_Composer { e = element });
+		        }
 
 		        if (isNew)
 		        {

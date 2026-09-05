@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using Unity.Mathematics;
 using UnityEngine;
 
 namespace InGame.UI
@@ -8,12 +9,20 @@ namespace InGame.UI
     {
         public string key;
         public CanvasElement parent;
+
+        public IComposer composer;
+        
         public readonly List<CanvasElement> children = new List<CanvasElement>();
         public readonly CanvasTransform transform = new CanvasTransform();
         public readonly List<CanvasComponent> components = new List<CanvasComponent>();
 
         // Событие для корня дерева (на него подписывается холст)
         public Action onTreeDirty;
+
+        public CanvasElement()
+        {
+	        composer = new Manual_Composer { e = this };
+        }
 
         public void MarkDirty()
         {
@@ -43,12 +52,11 @@ namespace InGame.UI
             return component;
         }
 
-        public T GetComponent<T>() where T : CanvasComponent
+        public T GetComponent<T>() where T : class
         {
             for (int i = 0; i < components.Count; i++)
             {
-                if (components[i] is T match)
-                    return match;
+                if (components[i] is T match) return match;
             }
             return null;
         }
@@ -114,17 +122,14 @@ namespace InGame.UI
 	        }
         }
         
-        public void SolveLayout()
+        public float2 SolveLayout(SizeConstraints constraints)
         {
-	        // 1. Сначала рекурсивно решаем лейауты всех дочерних поддеревьев
-	        for (int i = 0; i < children.Count; i++)
-	        {
-		        children[i].SolveLayout();
-	        }
-
-	        // 2. Если на текущем элементе висит LayoutGroup — рассчитываем его
-	        var layout = GetComponent<LayoutGroup>();
-	        layout?.Solve();
+	        return composer.Solve(constraints);
+        }
+        
+        public void SetComposer(IComposer newComposer)
+        {
+	        composer = newComposer;
         }
         
         public Vector4 GetScreenBounds()

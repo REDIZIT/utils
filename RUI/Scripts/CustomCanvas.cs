@@ -1,6 +1,7 @@
 ﻿using System.IO;
 using System.Linq;
 using TMPro;
+using Unity.Mathematics;
 using UnityEngine;
 using Zenject;
 
@@ -116,7 +117,8 @@ namespace InGame.UI
 
 	        if (isDirty)
 	        {
-		        root.SolveLayout();
+		        var screenConstraints = SizeConstraints.Tight(new(Screen.width, Screen.height));
+		        root.SolveLayout(screenConstraints);
 
 		        context.Clear();
 		        root.RenderTree(context);

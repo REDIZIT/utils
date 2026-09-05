@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace InGame.UI
 {
-    public class LayoutGroup : CanvasComponent
+	public class LayoutGroup : CanvasComponent, ILayout
     {
         public LayoutDirection direction = LayoutDirection.Vertical;
         public LayoutAlignment alignment = LayoutAlignment.Begin;
