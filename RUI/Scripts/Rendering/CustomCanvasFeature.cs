@@ -56,20 +56,25 @@ namespace InGame.UI
 
                     builder.SetRenderFunc((PassData data, RasterGraphContext context) =>
                     {
-                        context.cmd.SetViewProjectionMatrices(Matrix4x4.identity, data.ProjectionMatrix);
+	                    context.cmd.SetViewProjectionMatrices(Matrix4x4.identity, data.ProjectionMatrix);
 
-                        var canvas = CustomCanvas.Instance;
-                        if (canvas == null) return;
+	                    var canvas = CustomCanvas.Instance;
+	                    if (canvas == null) return;
 
-                        var batches = canvas.context.batches;
-                        for (int b = 0; b < batches.Count; b++)
-                        {
-                            var batch = batches[b];
-                            if (batch.verts.Count == 0 || batch.material == null || batch.mesh == null)
-                                continue;
+	                    var batches = canvas.context.batches;
+	                    for (int b = 0; b < batches.Count; b++)
+	                    {
+		                    var batch = batches[b];
+		                    if (batch.verts.Count == 0 || batch.material == null || batch.mesh == null)
+			                    continue;
 
-                            context.cmd.DrawMesh(batch.mesh, Matrix4x4.identity, batch.material, 0, 0);
-                        }
+		                    // ПОДДЕРЖКА MULTI-PASS: Вызываем все проходы шейдера последовательно!
+		                    int passCount = batch.material.passCount;
+		                    for (int p = 0; p < passCount; p++)
+		                    {
+			                    context.cmd.DrawMesh(batch.mesh, Matrix4x4.identity, batch.material, 0, p);
+		                    }
+	                    }
                     });
                 }
             }

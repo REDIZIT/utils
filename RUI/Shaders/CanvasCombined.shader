@@ -93,8 +93,19 @@ Shader "InGame/UI/CanvasCombined"
                 {
                     float4 texSample = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.uv);
                     float dist = texSample.a;
-                    float delta = fwidth(dist);
-                    float alpha = smoothstep(0.5 - delta, 0.5 + delta, dist);
+
+                    // Вычисляем резкость границы по экранным пикселям
+                    float distPerPixel = fwidth(dist);
+                    
+                    // Защита от деления на 0
+                    float scale = 1.0 / max(distPerPixel, 0.0001);
+
+                    // Смещение толщины: для мелких шрифтов слегка утончаем (-0.03 .. -0.05),
+                    // чтобы отверстия внутри 'e', 'o', 'c' не заплывали!
+                    float weightOffset = -0.04; 
+
+                    // Расчет альфы с субпиксельным сглаживанием ровно в 1 пиксель
+                    float alpha = saturate((dist - 0.5 + weightOffset) * scale + 0.5);
 
                     float4 col = input.color;
                     col.a *= alpha * clipAlpha;

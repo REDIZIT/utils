@@ -76,23 +76,29 @@ namespace InGame.UI
                 float charH = metrics.height * scale;
                 float bearingX = metrics.horizontalBearingX * scale;
                 float bearingY = metrics.horizontalBearingY * scale;
-
-                float glyphX = cursorX + bearingX;
-                float glyphY = baselineY + bearingY - charH;
-
+                
                 GlyphRect glyphRect = glyph.glyphRect;
                 float u0 = (float)glyphRect.x / atlasWidth;
                 float v0 = (float)glyphRect.y / atlasHeight;
                 float u1 = (float)(glyphRect.x + glyphRect.width) / atlasWidth;
                 float v1 = (float)(glyphRect.y + glyphRect.height) / atlasHeight;
 
+                float glyphX = cursorX + bearingX;
+                float glyphY = baselineY + bearingY - charH;
+
+				// ПИКСЕЛЬНЫЙ СНЭППИНГ: Округляем до целых экранных пикселей!
+                glyphX = Mathf.Round(glyphX);
+                glyphY = Mathf.Round(glyphY);
+                charW = Mathf.Round(charW);
+                charH = Mathf.Round(charH);
+
                 outputGlyphs.Add(new FormattedGlyph
                 {
-                    character = text[i],
-                    position = new float2(glyphX, glyphY),
-                    size = new float2(charW, charH),
-                    uv = new float4(u0, v0, u1, v1),
-                    scaleRatio = scaleRatio
+	                character = text[i],
+	                position = new float2(glyphX, glyphY),
+	                size = new float2(charW, charH),
+	                uv = new float4(u0, v0, u1, v1),
+	                scaleRatio = scaleRatio
                 });
 
                 cursorX += metrics.horizontalAdvance * scale;
