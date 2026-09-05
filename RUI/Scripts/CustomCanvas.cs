@@ -102,26 +102,24 @@ namespace InGame.UI
 
         public void Update()
         {
-            // Прокачиваем события Hot Reload для всех файлов в проекте
-            assetDatabase?.Update();
+	        assetDatabase?.Update();
 
-            if (root == null) return;
+	        if (root == null) return;
 
-            if (Application.isPlaying)
-            {
-                root.UpdateTree();
-            }
+	        if (Application.isPlaying)
+	        {
+		        root.UpdateTree();
+	        }
 
-            if (isDirty)
-            {
-                var layout = root.GetComponent<LayoutGroup>();
-                layout?.Solve();
+	        if (isDirty)
+	        {
+		        root.SolveLayout();
 
-                context.Clear();
-                root.RenderTree(context);
-                context.FinalizeBatches();
-                isDirty = false;
-            }
+		        context.Clear();
+		        root.RenderTree(context);
+		        context.FinalizeBatches();
+		        isDirty = false;
+	        }
         }
     }
 }

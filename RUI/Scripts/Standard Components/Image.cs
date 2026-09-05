@@ -33,7 +33,7 @@ namespace InGame.UI
 			if (material == null) return;
 
 			ctx.SetMaterial(material);
-			ctx.AppendQuad(Transform.size, Element.LocalToRoot, color, borderRadius);
+			ctx.AppendQuad(Transform.size, Transform.pivot, Element.LocalToRoot, color, borderRadius);
 		}
 	}
 }

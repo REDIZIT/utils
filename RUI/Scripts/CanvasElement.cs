@@ -85,17 +85,66 @@ namespace InGame.UI
             }
         }
 
+        // Внутри CanvasElement.cs:
         public void RenderTree(CanvasGenerationContext ctx)
         {
-            for (int i = 0; i < components.Count; i++)
-            {
-                components[i].GenerateMesh(ctx);
-            }
+	        Mask mask = GetComponent<Mask>();
+	        bool hasMask = mask != null && mask.enabled;
 
-            for (int i = 0; i < children.Count; i++)
-            {
-                children[i].RenderTree(ctx);
-            }
+	        if (hasMask)
+	        {
+		        ctx.PushClipRect(mask.GetWorldClipRect());
+	        }
+
+	        // Рисуем компоненты текущего элемента (например, фоновый Image или сам Mask)
+	        for (int i = 0; i < components.Count; i++)
+	        {
+		        components[i].GenerateMesh(ctx);
+	        }
+
+	        // Рисуем всех детей (они уже будут отсекаться по маске!)
+	        for (int i = 0; i < children.Count; i++)
+	        {
+		        children[i].RenderTree(ctx);
+	        }
+
+	        if (hasMask)
+	        {
+		        ctx.PopClipRect();
+	        }
+        }
+        
+        public void SolveLayout()
+        {
+	        // 1. Сначала рекурсивно решаем лейауты всех дочерних поддеревьев
+	        for (int i = 0; i < children.Count; i++)
+	        {
+		        children[i].SolveLayout();
+	        }
+
+	        // 2. Если на текущем элементе висит LayoutGroup — рассчитываем его
+	        var layout = GetComponent<LayoutGroup>();
+	        layout?.Solve();
+        }
+        
+        public Vector4 GetScreenBounds()
+        {
+	        Matrix4x4 m = LocalToRoot;
+
+	        float xMin = -transform.size.x * transform.pivot.x;
+	        float yMin = -transform.size.y * transform.pivot.y;
+	        float xMax = xMin + transform.size.x;
+	        float yMax = yMin + transform.size.y;
+
+	        Vector3 p0 = m.MultiplyPoint3x4(new Vector3(xMin, yMin, 0));
+	        Vector3 p1 = m.MultiplyPoint3x4(new Vector3(xMax, yMax, 0));
+
+	        return new Vector4(
+		        Mathf.Min(p0.x, p1.x),
+		        Mathf.Min(p0.y, p1.y),
+		        Mathf.Max(p0.x, p1.x),
+		        Mathf.Max(p0.y, p1.y)
+	        );
         }
     }
 }

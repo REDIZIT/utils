@@ -342,6 +342,15 @@ namespace InGame.UI
                 return true;
             }
 
+            if (lower == "pivot")
+            {
+	            if (expr is Node_TupleLiteral tuple && tuple.values.Count >= 2)
+		            transform.pivot = new float2(tuple.values[0], tuple.values[1]);
+	            else if (expr is Node_NumberLiteral num)
+		            transform.pivot = new float2(num.value, num.value);
+	            return true;
+            }
+            
             return false;
         }
 

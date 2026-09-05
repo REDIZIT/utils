@@ -12,6 +12,14 @@
 		{
 			Element?.MarkDirty();
 		}
+		
+		public void EnsureComponent<T>() where T : CanvasComponent, new()
+		{
+			if (Element == null) return;
+			
+			T existing = Element.GetComponent<T>();
+			if (existing == null) Element.AddComponent<T>();
+		}
 
 		public virtual void OnAttached() { }
 

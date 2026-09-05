@@ -73,14 +73,11 @@ namespace InGame.UI
 
         public override void Update()
         {
-            Vector2 mousePos = Input.mousePosition;
+	        Vector2 mousePos = Input.mousePosition;
+	        Vector4 bounds = Element.GetScreenBounds(); // (minX, minY, maxX, maxY)
 
-            Vector3 rootPos = Element.LocalToRoot.MultiplyPoint3x4(Vector3.zero);
-            float width = Transform.size.x * Transform.scale.x;
-            float height = Transform.size.y * Transform.scale.y;
-
-            bool inside = mousePos.x >= rootPos.x && mousePos.x <= rootPos.x + width &&
-                          mousePos.y >= rootPos.y && mousePos.y <= rootPos.y + height;
+	        bool inside = mousePos.x >= bounds.x && mousePos.x <= bounds.z &&
+	                      mousePos.y >= bounds.y && mousePos.y <= bounds.w;
 
             bool stateChanged = false;
 

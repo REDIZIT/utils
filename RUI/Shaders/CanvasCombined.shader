@@ -36,7 +36,8 @@ Shader "InGame/UI/CanvasCombined"
                 float4 color    : COLOR;
                 float2 uv       : TEXCOORD0;
                 float2 rectSize : TEXCOORD1; // (Width, Height)
-                float4 extra    : TEXCOORD2; // Для UI: (TL, TR, BR, BL). Для Текста: extra.x = -1 (флаг текста)
+                float4 extra    : TEXCOORD2; // (TL, TR, BR, BL) или extra.x = -1 (Текст)
+                float4 clipRect : TEXCOORD3; // (minX, minY, maxX, maxY) в экранных пикселях
             };
 
             struct Varyings 
@@ -46,6 +47,8 @@ Shader "InGame/UI/CanvasCombined"
                 float2 uv       : TEXCOORD0;
                 float2 rectSize : TEXCOORD1;
                 float4 extra    : TEXCOORD2;
+                float4 clipRect : TEXCOORD3;
+                float2 screenPos : TEXCOORD4; // Координаты в экранных пикселях для маски
             };
 
             TEXTURE2D(_MainTex);
@@ -67,41 +70,47 @@ Shader "InGame/UI/CanvasCombined"
                 output.uv = input.uv;
                 output.rectSize = input.rectSize;
                 output.extra = input.extra;
+                output.clipRect = input.clipRect;
+                
+                // В нашем ортографическом холсте input.vertex.xy УЖЕ находятся в экранных пикселях!
+                output.screenPos = input.vertex.xy;
                 return output;
             }
 
             float4 frag(Varyings input) : SV_Target
             {
-                // -------------------------------------------------------------
-                // РЕЖИМ 1: РЕНДЕРИНГ ТЕКСТА (SDF)
-                // Если extra.x == -1.0, значит это символ текста
-                // -------------------------------------------------------------
+                // --- 1. АНАЛИТИЧЕСКИЙ CLIP RECT (МАСКА) ---
+                // input.clipRect: xy = min (left, bottom), zw = max (right, top)
+                float2 dClip = min(input.screenPos - input.clipRect.xy, input.clipRect.zw - input.screenPos);
+                float clipAlpha = saturate(min(dClip.x, dClip.y) + 0.5);
+
+                // Если пиксель за пределами маски — мгновенный discard
+                if (clipAlpha <= 0.001)
+                    discard;
+
+                // --- 2. РЕЖИМ SDF ТЕКСТА ---
                 if (input.extra.x < -0.5)
                 {
                     float4 texSample = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.uv);
-                    
-                    // В TMP дистанция хранится в Альфа-канале (или в R для некоторых типов атласов)
                     float dist = texSample.a;
-
-                    // Аналитическое субпиксельное сглаживание через fwidth
-                    // fwidth(dist) дает точную скорость изменения дистанции на один пиксель экрана!
                     float delta = fwidth(dist);
                     float alpha = smoothstep(0.5 - delta, 0.5 + delta, dist);
 
                     float4 col = input.color;
-                    col.a *= alpha;
+                    col.a *= alpha * clipAlpha;
                     return col;
                 }
 
-                // -------------------------------------------------------------
-                // РЕЖИМ 2: РЕНДЕРИНГ ПРЯМОУГОЛЬНИКОВ / СКРУГЛЕННЫХ УГЛОВ
-                // -------------------------------------------------------------
+                // --- 3. ОБЫЧНЫЙ ПРЯМОУГОЛЬНИК БЕЗ СКРУГЛЕНИЯ ---
                 if (dot(input.extra, float4(1, 1, 1, 1)) <= 0.001)
                 {
                     float4 tex = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.uv);
-                    return tex * input.color;
+                    float4 col = tex * input.color;
+                    col.a *= clipAlpha;
+                    return col;
                 }
 
+                // --- 4. ПРЯМОУГОЛЬНИК СО СКРУГЛЕННЫМИ УГЛАМИ ---
                 float2 size = input.rectSize;
                 float2 p = (input.uv - 0.5) * size;
                 float aa = fwidth(length(p)) * 0.5;
@@ -111,7 +120,7 @@ Shader "InGame/UI/CanvasCombined"
                 float shapeAlpha = 1.0 - smoothstep(-aa, aa, distOuter);
 
                 float4 texColor = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.uv) * input.color;
-                texColor.a *= shapeAlpha;
+                texColor.a *= shapeAlpha * clipAlpha;
 
                 return texColor;
             }
