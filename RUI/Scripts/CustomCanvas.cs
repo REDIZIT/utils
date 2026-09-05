@@ -49,13 +49,19 @@ namespace InGame.UI
 
         private void InitResources()
         {
-            if (textMaterial == null && combinedMaterial != null && fontAsset != null)
-            {
-                textMaterial = new Material(combinedMaterial);
-                textMaterial.mainTexture = fontAsset.atlasTexture;
-            }
+	        // Загружаем байты шрифта (например, Segoe UI или LiberationSans)
+	        string fontPath = "C:/Windows/Fonts/segoeui.ttf";
+	        if (!File.Exists(fontPath)) fontPath = "C:/Windows/Fonts/arial.ttf";
 
-            canvasService.SetDefaultResources(combinedMaterial, textMaterial, fontAsset);
+	        byte[] fontBytes = File.Exists(fontPath) ? File.ReadAllBytes(fontPath) : null;
+
+	        // Создаем базовый двухпроходный субпиксельный материал
+	        var subpixelShader = Shader.Find("InGame/UI/SubpixelText");
+	        Material subpixelMat = subpixelShader != null ? new Material(subpixelShader) : null;
+
+	        // Регистрируем ресурсы в сервисе:
+	        canvasService.SetDefaultSubpixelResources(fontBytes, subpixelMat);
+	        canvasService.SetDefaultResources(combinedMaterial, null, fontAsset);
         }
 
         private void LoadRootScreen()

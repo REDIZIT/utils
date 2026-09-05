@@ -1,4 +1,4 @@
-Shader "InGame/UI/SubpixelTest"
+Shader "InGame/UI/SubpixelText"
 {
     Properties
     {
@@ -35,9 +35,10 @@ Shader "InGame/UI/SubpixelTest"
 
             struct Attributes 
             {
-                float4 vertex : POSITION;
-                float2 uv     : TEXCOORD0;
-                float4 color  : COLOR;
+                float4 vertex   : POSITION;
+                float2 uv       : TEXCOORD0;
+                float4 color    : COLOR;
+                float4 clipRect : TEXCOORD3; // Границы маски (minX, minY, maxX, maxY)
             };
 
             struct Varyings 
@@ -45,6 +46,8 @@ Shader "InGame/UI/SubpixelTest"
                 float4 position : SV_POSITION;
                 float2 uv       : TEXCOORD0;
                 float4 color    : COLOR;
+                float4 clipRect : TEXCOORD3;
+                float2 screenPos: TEXCOORD4;
             };
 
             TEXTURE2D(_MainTex);
@@ -60,16 +63,23 @@ Shader "InGame/UI/SubpixelTest"
                 output.position = TransformObjectToHClip(input.vertex.xyz);
                 output.uv = input.uv;
                 output.color = input.color * _TextColor;
+                output.clipRect = input.clipRect;
+                output.screenPos = input.vertex.xy;
                 return output;
             }
 
             float4 frag(Varyings input) : SV_Target
             {
-                // Читаем маску линейно (без искажений благодаря linear=true в Texture2D)
-                float3 mask = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.uv).rgb;
-                mask *= input.color.a;
+                // Отсечение по границам маски (Clipping)
+                float2 dClip = min(input.screenPos - input.clipRect.xy, input.clipRect.zw - input.screenPos);
+                float clipAlpha = saturate(min(dClip.x, dClip.y) + 0.5);
 
-                // Никаких pow()!
+                if (clipAlpha <= 0.001)
+                    discard;
+
+                float3 mask = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.uv).rgb;
+                mask *= input.color.a * clipAlpha;
+
                 return float4(mask, 1.0);
             }
             ENDHLSL
@@ -90,9 +100,10 @@ Shader "InGame/UI/SubpixelTest"
 
             struct Attributes 
             {
-                float4 vertex : POSITION;
-                float2 uv     : TEXCOORD0;
-                float4 color  : COLOR;
+                float4 vertex   : POSITION;
+                float2 uv       : TEXCOORD0;
+                float4 color    : COLOR;
+                float4 clipRect : TEXCOORD3;
             };
 
             struct Varyings 
@@ -100,6 +111,8 @@ Shader "InGame/UI/SubpixelTest"
                 float4 position : SV_POSITION;
                 float2 uv       : TEXCOORD0;
                 float4 color    : COLOR;
+                float4 clipRect : TEXCOORD3;
+                float2 screenPos: TEXCOORD4;
             };
 
             TEXTURE2D(_MainTex);
@@ -115,18 +128,24 @@ Shader "InGame/UI/SubpixelTest"
                 output.position = TransformObjectToHClip(input.vertex.xyz);
                 output.uv = input.uv;
                 output.color = input.color * _TextColor;
+                output.clipRect = input.clipRect;
+                output.screenPos = input.vertex.xy;
                 return output;
             }
 
             float4 frag(Varyings input) : SV_Target
             {
-                float3 mask = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.uv).rgb;
-                mask *= input.color.a;
+                float2 dClip = min(input.screenPos - input.clipRect.xy, input.clipRect.zw - input.screenPos);
+                float clipAlpha = saturate(min(dClip.x, dClip.y) + 0.5);
 
-                // Чистое умножение цвета текста на маску
+                if (clipAlpha <= 0.001)
+                    discard;
+
+                float3 mask = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.uv).rgb;
+                mask *= input.color.a * clipAlpha;
+
                 return float4(input.color.rgb * mask, 1.0);
             }
-
             ENDHLSL
         }
     }

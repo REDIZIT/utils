@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Reflection;
 using UnityEngine;
 using Zenject;
@@ -12,12 +11,15 @@ namespace InGame.UI
         public DiContainer container;
         public Dictionary<string, Type> componentTypes = new Dictionary<string, Type>();
         
-        // Хранилище зарегистрированных шаблонов (Key: тип первого компонента)
-        public Dictionary<Type, CanvasTemplate> templates = new Dictionary<Type, CanvasTemplate>();
+        public Material defaultSubpixelMaterial;
+        public byte[] defaultFontBytes;
         
         public Material defaultCombinedMaterial;
         public Material defaultTextMaterial;
         public TMPro.TMP_FontAsset defaultFont;
+        
+        public Dictionary<Type, CanvasTemplate> templates = new Dictionary<Type, CanvasTemplate>();
+        public readonly Dictionary<int, SubpixelFont> subpixelFontsBySize = new Dictionary<int, SubpixelFont>();
 
         public CanvasService(DiContainer container)
         {
@@ -108,6 +110,26 @@ namespace InGame.UI
 	        defaultCombinedMaterial = combinedMat;
 	        defaultTextMaterial = textMat;
 	        defaultFont = font;
+        }
+        
+        public SubpixelFont GetOrCreateSubpixelFont(int size)
+        {
+	        if (defaultFontBytes == null) return null;
+
+	        if (!subpixelFontsBySize.TryGetValue(size, out SubpixelFont font))
+	        {
+		        font = new SubpixelFont(defaultFontBytes, size);
+		        subpixelFontsBySize[size] = font;
+	        }
+
+	        return font;
+        }
+
+        public void SetDefaultSubpixelResources(byte[] ttfBytes, Material subpixelMat)
+        {
+	        defaultFontBytes = ttfBytes;
+	        defaultSubpixelMaterial = subpixelMat;
+	        subpixelFontsBySize.Clear();
         }
     }
 }
