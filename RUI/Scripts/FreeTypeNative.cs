@@ -11,6 +11,10 @@ namespace InGame.UI
         public const uint FT_LOAD_RENDER = 0x4;
         public const uint FT_LOAD_TARGET_LCD = 0x30000;
         public const int FT_RENDER_MODE_LCD = 3;
+        
+        public const int FT_LCD_FILTER_NONE = 0;
+        public const int FT_LCD_FILTER_DEFAULT = 1; // <--- Каноничный сбалансированный фильтр ClearType!
+        public const int FT_LCD_FILTER_LIGHT = 2;   // Мягкий фильтр
 
         // Жесткая разметка слота под Windows x64 (MSVC)
         [StructLayout(LayoutKind.Explicit, Size = 160)]
@@ -64,5 +68,8 @@ namespace InGame.UI
 
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         public static extern int FT_Load_Char(IntPtr face, uint char_code, uint load_flags);
+        
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int FT_Library_SetLcdFilter(IntPtr library, int filter);
     }
 }

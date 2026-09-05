@@ -33,17 +33,19 @@ namespace InGame.UI
 
             int error = FreeTypeNative.FT_Init_FreeType(out library);
             if (error != 0) throw new Exception($"[FreeType] Init error: {error}");
+            
+            FreeTypeNative.FT_Library_SetLcdFilter(library, FreeTypeNative.FT_LCD_FILTER_DEFAULT);
 
             error = FreeTypeNative.FT_New_Memory_Face(library, fontData, (IntPtr)fontData.Length, IntPtr.Zero, out face);
             if (error != 0) throw new Exception($"[FreeType] Face error: {error}");
 
             FreeTypeNative.FT_Set_Pixel_Sizes(face, 0, (uint)fontSize);
 
-            AtlasTexture = new Texture2D(atlasWidth, atlasHeight, TextureFormat.RGBA32, false)
+            AtlasTexture = new Texture2D(atlasWidth, atlasHeight, TextureFormat.RGBA32, false, true) // <--- true означает Linear (запрет sRGB)
             {
-                name = "SubpixelFontAtlas",
-                filterMode = FilterMode.Point,
-                wrapMode = TextureWrapMode.Clamp
+	            name = "SubpixelFontAtlas",
+	            filterMode = FilterMode.Point,
+	            wrapMode = TextureWrapMode.Clamp
             };
 
             atlasPixels = new Color32[atlasWidth * atlasHeight];

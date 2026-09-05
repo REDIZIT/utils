@@ -66,11 +66,8 @@ namespace InGame.UI
             {
                 char c = text[i];
                 var glyph = subpixelFont.GetGlyph(c);
-                Debug.Log($"glyph '{c}' is null? {glyph == null}");
                 if (glyph == null) continue;
                 
-                Debug.Log($"size: {glyph.width}x{glyph.height}");
-
                 if (glyph.width > 0 && glyph.height > 0)
                 {
                     float x = Mathf.Round(penX + glyph.bearingX);

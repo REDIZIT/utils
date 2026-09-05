@@ -65,8 +65,11 @@ Shader "InGame/UI/SubpixelTest"
 
             float4 frag(Varyings input) : SV_Target
             {
+                // Читаем маску линейно (без искажений благодаря linear=true в Texture2D)
                 float3 mask = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.uv).rgb;
                 mask *= input.color.a;
+
+                // Никаких pow()!
                 return float4(mask, 1.0);
             }
             ENDHLSL
@@ -119,8 +122,11 @@ Shader "InGame/UI/SubpixelTest"
             {
                 float3 mask = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.uv).rgb;
                 mask *= input.color.a;
+
+                // Чистое умножение цвета текста на маску
                 return float4(input.color.rgb * mask, 1.0);
             }
+
             ENDHLSL
         }
     }
