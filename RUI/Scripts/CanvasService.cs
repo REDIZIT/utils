@@ -11,6 +11,7 @@ namespace InGame.UI
         public DiContainer container;
         public Dictionary<string, Type> componentTypes = new Dictionary<string, Type>();
         
+        public readonly Dictionary<string, SubpixelFont> subpixelFontCache = new Dictionary<string, SubpixelFont>();
         public Material defaultSubpixelMaterial;
         public byte[] defaultFontBytes;
         
@@ -20,7 +21,9 @@ namespace InGame.UI
         
         public Dictionary<Type, CanvasTemplate> templates = new Dictionary<Type, CanvasTemplate>();
         public readonly Dictionary<int, SubpixelFont> subpixelFontsBySize = new Dictionary<int, SubpixelFont>();
-
+        
+        public UIAssetDatabase assetDatabase;
+        
         public CanvasService(DiContainer container)
         {
             this.container = container;
@@ -111,25 +114,60 @@ namespace InGame.UI
 	        defaultTextMaterial = textMat;
 	        defaultFont = font;
         }
-        
-        public SubpixelFont GetOrCreateSubpixelFont(int size)
+
+        public void ClearSubpixelCache()
         {
-	        if (defaultFontBytes == null) return null;
-
-	        if (!subpixelFontsBySize.TryGetValue(size, out SubpixelFont font))
+	        foreach (var font in subpixelFontCache.Values)
 	        {
-		        font = new SubpixelFont(defaultFontBytes, size);
-		        subpixelFontsBySize[size] = font;
+		        font.Dispose();
 	        }
-
-	        return font;
+	        subpixelFontCache.Clear();
         }
 
-        public void SetDefaultSubpixelResources(byte[] ttfBytes, Material subpixelMat)
+		// Получить или создать шрифт заданного имени и размера
+        public SubpixelFont GetOrCreateSubpixelFont(string fontName, int fontSize, UIAssetDatabase assetDb)
         {
-	        defaultFontBytes = ttfBytes;
-	        defaultSubpixelMaterial = subpixelMat;
-	        subpixelFontsBySize.Clear();
+	        string normName = UIAssetDatabase.NormalizeKey(fontName);
+	        string cacheKey = $"{normName}:{fontSize}";
+
+	        if (subpixelFontCache.TryGetValue(cacheKey, out SubpixelFont font))
+		        return font;
+
+	        // Ищем байты шрифта в UIAssetDatabase, если имя указано
+	        byte[] targetBytes = null;
+	        if (!string.IsNullOrEmpty(normName) && assetDb != null)
+	        {
+		        targetBytes = assetDb.GetFontBytes(normName);
+	        }
+
+	        // Если по имени не нашли — берем дефолтный шрифт
+	        if (targetBytes == null)
+	        {
+		        targetBytes = defaultFontBytes;
+	        }
+
+	        if (targetBytes == null)
+	        {
+		        Debug.LogError($"[CanvasService] Не найдены байты для шрифта '{fontName}' и нет дефолтного шрифта!");
+		        return null;
+	        }
+
+	        SubpixelFont newFont = new SubpixelFont(targetBytes, fontSize);
+	        subpixelFontCache[cacheKey] = newFont;
+	        return newFont;
+        }
+
+		// Перегрузка для дефолтного шрифта
+        public SubpixelFont GetOrCreateSubpixelFont(int fontSize)
+        {
+	        return GetOrCreateSubpixelFont(string.Empty, fontSize, null);
+        }
+        
+        public void SetDefaultSubpixelResources(byte[] fontBytes, Material subpixelMaterial)
+        {
+	        defaultFontBytes = fontBytes;
+	        defaultSubpixelMaterial = subpixelMaterial;
+	        ClearSubpixelCache();
         }
     }
 }

@@ -10,78 +10,183 @@ namespace InGame.UI
     public static class CanvasReconciler
     {
         public static void Reconcile(
-            CanvasElement element, 
-            Node_Element node, 
-            Dictionary<string, Type> componentTypes, 
-            DiContainer container,
-            CanvasService service = null)
-        {
-            for (int i = 0; i < node.properties.Count; i++)
-            {
-                Node_Property prop = node.properties[i];
-                ApplyTransformProperty(element.transform, prop.name, prop.value);
-            }
+		    CanvasElement element, 
+		    Node_Element node, 
+		    Dictionary<string, Type> componentTypes, 
+		    DiContainer container,
+		    CanvasService service = null)
+		{
+		    // Достаем базу ассетов из сервиса
+		    UIAssetDatabase assetDb = service?.assetDatabase;
 
-            ReconcileComponents(element, node.components, componentTypes, container);
-            ReconcileChildren(element, node.children, componentTypes, container, service);
+		    for (int i = 0; i < node.properties.Count; i++)
+		    {
+		        Node_Property prop = node.properties[i];
+		        ApplyTransformProperty(element.transform, prop.name, prop.value);
+		    }
 
-            if (service != null)
-            {
-                PostProcessBindings(element, service);
-            }
-        }
+		    // Передаем assetDb в компоненты!
+		    ReconcileComponents(element, node.components, componentTypes, container, assetDb);
+		    ReconcileChildren(element, node.children, componentTypes, container, service);
 
-        private static void ReconcileComponents(
-            CanvasElement element, 
-            List<Node_Component> componentNodes, 
-            Dictionary<string, Type> componentTypes, 
-            DiContainer container)
-        {
-            for (int i = 0; i < componentNodes.Count; i++)
-            {
-                Node_Component compNode = componentNodes[i];
+		    if (service != null)
+		    {
+		        PostProcessBindings(element, service);
+		    }
+		}
 
-                if (!componentTypes.TryGetValue(compNode.typeName, out Type compType))
-                {
-                    Debug.LogWarning($"[CanvasReconciler] Неизвестный тип компонента '{compNode.typeName}'!");
-                    continue;
-                }
+		private static void ReconcileComponents(
+		    CanvasElement element, 
+		    List<Node_Component> componentNodes, 
+		    Dictionary<string, Type> componentTypes, 
+		    DiContainer container,
+		    UIAssetDatabase assetDb) // <--- Добавлен параметр assetDb
+		{
+		    for (int i = 0; i < componentNodes.Count; i++)
+		    {
+		        Node_Component compNode = componentNodes[i];
 
-                CanvasComponent existingComp = null;
-                for (int c = 0; c < element.components.Count; c++)
-                {
-                    if (element.components[c].GetType() == compType)
-                    {
-                        existingComp = element.components[c];
-                        break;
-                    }
-                }
+		        if (!componentTypes.TryGetValue(compNode.typeName, out Type compType))
+		        {
+		            Debug.LogWarning($"[CanvasReconciler] Неизвестный тип компонента '{compNode.typeName}'!");
+		            continue;
+		        }
 
-                bool isNew = false;
-                if (existingComp == null)
-                {
-	                existingComp = (CanvasComponent)container.Instantiate(compType);
-	                existingComp.Element = element;
-	                element.components.Add(existingComp);
-	                isNew = true;
-                }
+		        CanvasComponent existingComp = null;
+		        for (int c = 0; c < element.components.Count; c++)
+		        {
+		            if (element.components[c].GetType() == compType)
+		            {
+		                existingComp = element.components[c];
+		                break;
+		            }
+		        }
 
-                existingComp.id = compNode.id;
+		        bool isNew = false;
+		        if (existingComp == null)
+		        {
+		            existingComp = (CanvasComponent)container.Instantiate(compType);
+		            existingComp.Element = element;
+		            element.components.Add(existingComp);
+		            isNew = true;
+		        }
 
-				// Применяем свойства из AST
-                for (int p = 0; p < compNode.properties.Count; p++)
-                {
-	                Node_Property prop = compNode.properties[p];
-	                ApplyComponentProperty(existingComp, prop);
-                }
+		        existingComp.id = compNode.id;
 
-				// Если компонент новый — уведомляем его о монтировании!
-                if (isNew)
-                {
-	                existingComp.OnAttached();
-                }
-            }
-        }
+		        for (int p = 0; p < compNode.properties.Count; p++)
+		        {
+		            Node_Property prop = compNode.properties[p];
+		            // Передаем assetDb в ApplyComponentProperty!
+		            ApplyComponentProperty(existingComp, prop, assetDb);
+		        }
+
+		        if (isNew)
+		        {
+		            existingComp.OnAttached();
+		        }
+		    }
+		}
+
+		public static void ApplyComponentProperty(CanvasComponent component, Node_Property prop, UIAssetDatabase assetDb = null)
+		{
+		    Type compType = component.GetType();
+		    const BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase;
+
+		    PropertyInfo property = compType.GetProperty(prop.name, flags);
+		    if (property != null && property.CanWrite)
+		    {
+		        object convertedValue = ConvertExpressionToType(prop.value, property.PropertyType, assetDb);
+		        if (convertedValue != null)
+		        {
+		            property.SetValue(component, convertedValue);
+		        }
+		        return;
+		    }
+
+		    FieldInfo field = compType.GetField(prop.name, flags);
+		    if (field != null)
+		    {
+		        object convertedValue = ConvertExpressionToType(prop.value, field.FieldType, assetDb);
+		        if (convertedValue != null)
+		        {
+		            field.SetValue(component, convertedValue);
+		        }
+		    }
+		}
+
+		public static object ConvertExpressionToType(Node_Expression expr, Type targetType, UIAssetDatabase assetDb = null)
+		{
+		    if (targetType == typeof(string) && expr is Node_StringLiteral str)
+		        return str.value;
+
+		    // Резолвинг Sprite (поддерживаем и "arrow", и arrow без кавычек):
+		    if (targetType == typeof(Sprite) && assetDb != null)
+		    {
+		        string spriteName = null;
+		        if (expr is Node_StringLiteral strNode) spriteName = strNode.value;
+		        else if (expr is Node_IdentifierReference identNode) spriteName = identNode.name;
+
+		        if (!string.IsNullOrEmpty(spriteName))
+		        {
+		            Sprite foundSprite = assetDb.GetSprite(spriteName);
+		            if (foundSprite == null)
+		            {
+		                Debug.LogWarning($"[CanvasReconciler] Спрайт '{spriteName}' не найден в UIAssetDatabase!");
+		            }
+		            return foundSprite;
+		        }
+		    }
+
+		    if (targetType == typeof(float) && expr is Node_NumberLiteral numFloat)
+		        return numFloat.value;
+
+		    if (targetType == typeof(int) && expr is Node_NumberLiteral numInt)
+		        return (int)numInt.value;
+
+		    if (targetType == typeof(bool) && expr is Node_BooleanLiteral b)
+		        return b.value;
+
+		    if (targetType == typeof(Color))
+		    {
+		        if (expr is Node_ColorLiteral col && ColorUtility.TryParseHtmlString(col.hex, out Color parsedColor))
+		        {
+		            if (QualitySettings.activeColorSpace == ColorSpace.Linear)
+		                return parsedColor.linear;
+		            return parsedColor;
+		        }
+		    }
+
+		    if (targetType == typeof(float2))
+		    {
+		        if (expr is Node_TupleLiteral tuple && tuple.values.Count >= 2)
+		            return new float2(tuple.values[0], tuple.values[1]);
+		        if (expr is Node_NumberLiteral scalar)
+		            return new float2(scalar.value, scalar.value);
+		    }
+
+		    if (targetType == typeof(float4))
+		    {
+		        if (expr is Node_TupleLiteral tuple)
+		        {
+		            if (tuple.values.Count == 4)
+		                return new float4(tuple.values[0], tuple.values[1], tuple.values[2], tuple.values[3]);
+		            if (tuple.values.Count == 2)
+		                return new float4(tuple.values[0], tuple.values[1], tuple.values[0], tuple.values[1]);
+		        }
+		        if (expr is Node_NumberLiteral scalar)
+		            return new float4(scalar.value, scalar.value, scalar.value, scalar.value);
+		    }
+
+		    if (targetType.IsEnum)
+		    {
+		        if (expr is Node_IdentifierReference ident)
+		            return Enum.Parse(targetType, ident.name, true);
+		        if (expr is Node_StringLiteral strEnum)
+		            return Enum.Parse(targetType, strEnum.value, true);
+		    }
+
+		    return null;
+		}
 
         private static void ReconcileChildren(
             CanvasElement parent, 
@@ -272,33 +377,6 @@ namespace InGame.UI
             return null;
         }
 
-        public static void ApplyComponentProperty(CanvasComponent component, Node_Property prop)
-        {
-            Type compType = component.GetType();
-            const BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase;
-
-            PropertyInfo property = compType.GetProperty(prop.name, flags);
-            if (property != null && property.CanWrite)
-            {
-                object convertedValue = ConvertExpressionToType(prop.value, property.PropertyType);
-                if (convertedValue != null)
-                {
-                    property.SetValue(component, convertedValue);
-                }
-                return;
-            }
-
-            FieldInfo field = compType.GetField(prop.name, flags);
-            if (field != null)
-            {
-                object convertedValue = ConvertExpressionToType(prop.value, field.FieldType);
-                if (convertedValue != null)
-                {
-                    field.SetValue(component, convertedValue);
-                }
-            }
-        }
-
         public static bool ApplyTransformProperty(CanvasTransform transform, string name, Node_Expression expr)
         {
             string lower = name.ToLowerInvariant();
@@ -352,65 +430,6 @@ namespace InGame.UI
             }
             
             return false;
-        }
-
-        public static object ConvertExpressionToType(Node_Expression expr, Type targetType)
-        {
-            if (targetType == typeof(string) && expr is Node_StringLiteral str)
-                return str.value;
-
-            if (targetType == typeof(float) && expr is Node_NumberLiteral numFloat)
-                return numFloat.value;
-
-            if (targetType == typeof(int) && expr is Node_NumberLiteral numInt)
-                return (int)numInt.value;
-
-            if (targetType == typeof(bool) && expr is Node_BooleanLiteral b)
-                return b.value;
-
-            if (targetType == typeof(Color))
-            {
-	            if (expr is Node_ColorLiteral col && ColorUtility.TryParseHtmlString(col.hex, out Color parsedColor))
-	            {
-		            // Если проект в Linear пространстве, переводим цвет в linear:
-		            if (QualitySettings.activeColorSpace == ColorSpace.Linear)
-		            {
-			            return parsedColor.linear;
-		            }
-		            return parsedColor;
-	            }
-            }
-
-            if (targetType == typeof(float2))
-            {
-                if (expr is Node_TupleLiteral tuple && tuple.values.Count >= 2)
-                    return new float2(tuple.values[0], tuple.values[1]);
-                if (expr is Node_NumberLiteral scalar)
-                    return new float2(scalar.value, scalar.value);
-            }
-
-            if (targetType == typeof(float4))
-            {
-                if (expr is Node_TupleLiteral tuple)
-                {
-                    if (tuple.values.Count == 4)
-                        return new float4(tuple.values[0], tuple.values[1], tuple.values[2], tuple.values[3]);
-                    if (tuple.values.Count == 2)
-                        return new float4(tuple.values[0], tuple.values[1], tuple.values[0], tuple.values[1]);
-                }
-                if (expr is Node_NumberLiteral scalar)
-                    return new float4(scalar.value, scalar.value, scalar.value, scalar.value);
-            }
-
-            if (targetType.IsEnum)
-            {
-                if (expr is Node_IdentifierReference ident)
-                    return Enum.Parse(targetType, ident.name, true);
-                if (expr is Node_StringLiteral strEnum)
-                    return Enum.Parse(targetType, strEnum.value, true);
-            }
-
-            return null;
         }
     }
 }

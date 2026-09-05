@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using System.Linq;
 using TMPro;
 using UnityEngine;
 using Zenject;
@@ -49,18 +50,14 @@ namespace InGame.UI
 
         private void InitResources()
         {
-	        // Загружаем байты шрифта (например, Segoe UI или LiberationSans)
-	        string fontPath = "C:/Windows/Fonts/segoeui.ttf";
-	        if (!File.Exists(fontPath)) fontPath = "C:/Windows/Fonts/arial.ttf";
-
-	        byte[] fontBytes = File.Exists(fontPath) ? File.ReadAllBytes(fontPath) : null;
-
-	        // Создаем базовый двухпроходный субпиксельный материал
+	        // Материал для субпиксельного шейдера
 	        var subpixelShader = Shader.Find("InGame/UI/SubpixelText");
 	        Material subpixelMat = subpixelShader != null ? new Material(subpixelShader) : null;
 
-	        // Регистрируем ресурсы в сервисе:
-	        canvasService.SetDefaultSubpixelResources(fontBytes, subpixelMat);
+	        // Если в UIAssetDatabase нашелся любой шрифт — берем его дефолтным:
+	        byte[] defaultFont = assetDatabase.fontBytes.Values.FirstOrDefault();
+
+	        canvasService.SetDefaultSubpixelResources(defaultFont, subpixelMat);
 	        canvasService.SetDefaultResources(combinedMaterial, null, fontAsset);
         }
 

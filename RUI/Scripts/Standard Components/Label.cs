@@ -17,8 +17,23 @@ namespace InGame.UI
 
         public SubpixelFont subpixelFont;
         public Material fontMaterial;
+        
+        private string internalFontName = string.Empty;
 
-        [Inject] public CanvasService canvasService;
+        [Inject] private CanvasService canvasService;
+        [Inject] private UIAssetDatabase assetDatabase;
+        
+        public string font
+        {
+	        get => internalFontName;
+	        set
+	        {
+		        if (internalFontName == value) return;
+		        internalFontName = value;
+		        UpdateFont();
+		        MarkDirty();
+	        }
+        }
 
         public string text
         {
@@ -73,28 +88,19 @@ namespace InGame.UI
 
         private void UpdateFont()
         {
-            if (canvasService == null) return;
+	        if (canvasService == null) return;
 
-            // Получаем шрифт нужного кегля
-            subpixelFont = canvasService.GetOrCreateSubpixelFont(internalFontSize);
+	        // Резолвим шрифт по имени через AssetDatabase или берем дефолтный:
+	        subpixelFont = canvasService.GetOrCreateSubpixelFont(internalFontName, internalFontSize, assetDatabase);
 
-            // Настраиваем двухпроходный субпиксельный материал под этот атлас
-            if (subpixelFont != null && canvasService.defaultSubpixelMaterial != null)
-            {
-                if (fontMaterial == null)
-                {
-                    fontMaterial = new Material(canvasService.defaultSubpixelMaterial);
-                }
-                fontMaterial.mainTexture = subpixelFont.AtlasTexture;
-            }
-        }
-
-        public float2 GetPreferredSize()
-        {
-            if (subpixelFont != null)
-                return TextEngine.MeasureSubpixel(text, subpixelFont);
-
-            return float2.zero;
+	        if (subpixelFont != null && canvasService.defaultSubpixelMaterial != null)
+	        {
+		        if (fontMaterial == null)
+		        {
+			        fontMaterial = new Material(canvasService.defaultSubpixelMaterial);
+		        }
+		        fontMaterial.mainTexture = subpixelFont.AtlasTexture;
+	        }
         }
 
         public override void GenerateMesh(CanvasGenerationContext ctx)
