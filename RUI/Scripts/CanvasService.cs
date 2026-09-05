@@ -83,32 +83,24 @@ namespace InGame.UI
 
 		private void ProcessTemplateNode(Node_Element templateNode)
 		{
-		    if (templateNode.components.Count == 0)
-		    {
-		        throw new InvalidOperationException("Блок template { ... } должен содержать хотя бы один компонент для определения типа!");
-		    }
+			if (templateNode.components.Count == 0)
+			{
+				throw new InvalidOperationException("Блок template { ... } должен содержать хотя бы один компонент для определения типа!");
+			}
 
-		    string firstCompName = templateNode.components[0].typeName;
-		    if (!componentTypes.TryGetValue(firstCompName, out Type compType))
-		    {
-		        throw new InvalidOperationException($"Неизвестный компонент '{firstCompName}' в определении template!");
-		    }
+			string firstCompName = templateNode.components[0].typeName;
+			if (!componentTypes.TryGetValue(firstCompName, out Type compType))
+			{
+				throw new InvalidOperationException($"Неизвестный компонент '{firstCompName}' в определении template!");
+			}
 
-		    if (templates.ContainsKey(compType))
-		    {
-		        throw new InvalidOperationException($"Обнаружено дублирование шаблона для типа '{compType.Name}'! Шаблон этого типа уже объявлен.");
-		    }
+			if (templates.ContainsKey(compType))
+			{
+				throw new InvalidOperationException($"Обнаружено дублирование шаблона для типа '{compType.Name}'! Шаблон этого типа уже объявлен.");
+			}
 
-		    // Сохраняем первый дочерний элемент внутри template как чертеж (или сам templateNode)
-		    // Если синтаксис: template { HierarchyLot: ... }
-		    if (templateNode.children.Count > 0)
-		    {
-		        templates[compType] = new CanvasTemplate(compType, templateNode.children[0]);
-		    }
-		    else
-		    {
-		        templates[compType] = new CanvasTemplate(compType, templateNode);
-		    }
+			// Чертеж шаблона строки — это ВСЕГДА сам templateNode!
+			templates[compType] = new CanvasTemplate(compType, templateNode);
 		}
         
         public void SetDefaultResources(Material combinedMat, Material textMat, TMPro.TMP_FontAsset font)

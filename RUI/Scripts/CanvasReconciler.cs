@@ -370,8 +370,15 @@ namespace InGame.UI
 
             if (targetType == typeof(Color))
             {
-                if (expr is Node_ColorLiteral col && ColorUtility.TryParseHtmlString(col.hex, out Color parsedColor))
-                    return parsedColor;
+	            if (expr is Node_ColorLiteral col && ColorUtility.TryParseHtmlString(col.hex, out Color parsedColor))
+	            {
+		            // Если проект в Linear пространстве, переводим цвет в linear:
+		            if (QualitySettings.activeColorSpace == ColorSpace.Linear)
+		            {
+			            return parsedColor.linear;
+		            }
+		            return parsedColor;
+	            }
             }
 
             if (targetType == typeof(float2))
