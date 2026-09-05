@@ -150,7 +150,6 @@ namespace InGame.UI
 
 		        ctx.AppendQuad(
 			        glyph.size,
-			        float2.zero,
 			        localToRoot * Matrix4x4.Translate(new Vector3(glyph.position.x, glyph.position.y, 0)),
 			        color,
 			        float4.zero,

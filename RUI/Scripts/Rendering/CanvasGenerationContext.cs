@@ -120,65 +120,43 @@ namespace InGame.UI
             }
         }
 
-        public void AppendQuad(float2 size, float2 pivot, Matrix4x4 matrix, Color color, float4 cornerRadii, float4 uvRect = default)
-		{
-		    if (currentBatch == null)
-		        throw new InvalidOperationException("Материал не был установлен перед вызовом AppendQuad!");
+        public void AppendQuad(float2 size, Matrix4x4 matrix, Color color, float4 cornerRadii, float4 uvRect = default)
+        {
+	        if (currentBatch == null) throw new InvalidOperationException("Material not set!");
 
-		    int baseIndex = currentBatch.verts.Count;
+	        int baseIndex = currentBatch.verts.Count;
 
-		    float xMin = -size.x * pivot.x;
-		    float yMin = -size.y * pivot.y;
-		    float xMax = xMin + size.x;
-		    float yMax = yMin + size.y;
+	        // Вершины строго от 0 до size
+	        Vector3 p0 = matrix.MultiplyPoint3x4(new Vector3(0, 0, 0));
+	        Vector3 p1 = matrix.MultiplyPoint3x4(new Vector3(size.x, 0, 0));
+	        Vector3 p2 = matrix.MultiplyPoint3x4(new Vector3(0, size.y, 0));
+	        Vector3 p3 = matrix.MultiplyPoint3x4(new Vector3(size.x, size.y, 0));
 
-		    Vector3 p0 = matrix.MultiplyPoint3x4(new Vector3(xMin, yMin, 0));
-		    Vector3 p1 = matrix.MultiplyPoint3x4(new Vector3(xMax, yMin, 0));
-		    Vector3 p2 = matrix.MultiplyPoint3x4(new Vector3(xMin, yMax, 0));
-		    Vector3 p3 = matrix.MultiplyPoint3x4(new Vector3(xMax, yMax, 0));
+	        currentBatch.verts.Add(p0);
+	        currentBatch.verts.Add(p1);
+	        currentBatch.verts.Add(p2);
+	        currentBatch.verts.Add(p3);
 
-		    currentBatch.verts.Add(p0);
-		    currentBatch.verts.Add(p1);
-		    currentBatch.verts.Add(p2);
-		    currentBatch.verts.Add(p3);
+	        // UV logic... (остается как было)
+	        if (math.dot(uvRect, uvRect) <= 0.0001f) {
+		        currentBatch.uvs.Add(new Vector2(0, 0)); currentBatch.uvs.Add(new Vector2(1, 0));
+		        currentBatch.uvs.Add(new Vector2(0, 1)); currentBatch.uvs.Add(new Vector2(1, 1));
+	        } else {
+		        currentBatch.uvs.Add(new Vector2(uvRect.x, uvRect.y)); currentBatch.uvs.Add(new Vector2(uvRect.z, uvRect.y));
+		        currentBatch.uvs.Add(new Vector2(uvRect.x, uvRect.w)); currentBatch.uvs.Add(new Vector2(uvRect.z, uvRect.w));
+	        }
 
-		    // Если кастомный UV не передан (нули), используем стандартный 0..1
-		    if (math.dot(uvRect, uvRect) <= 0.0001f)
-		    {
-		        currentBatch.uvs.Add(new Vector2(0, 0));
-		        currentBatch.uvs.Add(new Vector2(1, 0));
-		        currentBatch.uvs.Add(new Vector2(0, 1));
-		        currentBatch.uvs.Add(new Vector2(1, 1));
-		    }
-		    else
-		    {
-		        // Иначе берем точные координаты спрайта из атласа: (uMin, vMin, uMax, vMax)
-		        currentBatch.uvs.Add(new Vector2(uvRect.x, uvRect.y));
-		        currentBatch.uvs.Add(new Vector2(uvRect.z, uvRect.y));
-		        currentBatch.uvs.Add(new Vector2(uvRect.x, uvRect.w));
-		        currentBatch.uvs.Add(new Vector2(uvRect.z, uvRect.w));
-		    }
-
-		    Vector2 rectSize = new Vector2(size.x, size.y);
-		    Vector4 radii = new Vector4(cornerRadii.x, cornerRadii.y, cornerRadii.z, cornerRadii.w);
-		    Vector4 currentClip = CurrentClipRect;
-
-		    for (int i = 0; i < 4; i++)
-		    {
-		        currentBatch.uv1RectSizes.Add(rectSize);
-		        currentBatch.uv2Data.Add(radii);
+	        Vector4 currentClip = CurrentClipRect;
+	        for (int i = 0; i < 4; i++) {
+		        currentBatch.uv1RectSizes.Add(new Vector2(size.x, size.y));
+		        currentBatch.uv2Data.Add(cornerRadii);
 		        currentBatch.uv3ClipRects.Add(currentClip);
 		        currentBatch.colors.Add(color);
-		    }
+	        }
 
-		    currentBatch.tris.Add(baseIndex + 0);
-		    currentBatch.tris.Add(baseIndex + 2);
-		    currentBatch.tris.Add(baseIndex + 1);
-
-		    currentBatch.tris.Add(baseIndex + 2);
-		    currentBatch.tris.Add(baseIndex + 3);
-		    currentBatch.tris.Add(baseIndex + 1);
-		}
+	        currentBatch.tris.Add(baseIndex + 0); currentBatch.tris.Add(baseIndex + 2); currentBatch.tris.Add(baseIndex + 1);
+	        currentBatch.tris.Add(baseIndex + 2); currentBatch.tris.Add(baseIndex + 3); currentBatch.tris.Add(baseIndex + 1);
+        }
 
         public void AppendTextGlyph(float2 pos, float2 size, float4 uvRect, Matrix4x4 matrix, Color color)
         {

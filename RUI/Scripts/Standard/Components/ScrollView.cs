@@ -54,25 +54,21 @@ namespace InGame.UI
 
         private void ApplyPosition()
         {
-            float viewportHeight = Transform.size.y;
-            float contentHeight = contentElement.transform.size.y;
-            float maxScroll = Mathf.Max(0f, contentHeight - viewportHeight);
+	        float viewportHeight = Transform.size.y;
+	        float contentHeight = contentElement.transform.size.y;
+	        float maxScroll = Mathf.Max(0f, contentHeight - viewportHeight);
 
-            // Клампим на случай, если количество элементов уменьшилось динамически
-            scrollPosition = Mathf.Clamp(scrollPosition, 0f, maxScroll);
+	        scrollPosition = Mathf.Clamp(scrollPosition, 0f, maxScroll);
 
-            // Универсальная формула верхней границы для любого pivot.y:
-            // Если pivot.y == 1, baseY = viewportHeight
-            // Если pivot.y == 0, baseY = viewportHeight - contentHeight
-            float baseY = viewportHeight - contentHeight * (1f - contentElement.transform.pivot.y);
-            float targetY = baseY + scrollPosition;
+	        // Когда скролл 0, низ контента находится в (viewportHeight - contentHeight)
+	        // Когда мы крутим колесико, контент уезжает вверх (+scrollPosition)
+	        float targetY = (viewportHeight - contentHeight) + scrollPosition;
 
-            // Применяем позицию сразу же на первом кадре, даже если колесико мыши не двигали!
-            if (Mathf.Abs(contentElement.transform.localPos.y - targetY) > 0.001f)
-            {
-                contentElement.transform.localPos.y = targetY;
-                MarkDirty();
-            }
+	        if (Mathf.Abs(contentElement.transform.localPos.y - targetY) > 0.001f)
+	        {
+		        contentElement.transform.localPos.y = targetY;
+		        MarkDirty();
+	        }
         }
     }
 }

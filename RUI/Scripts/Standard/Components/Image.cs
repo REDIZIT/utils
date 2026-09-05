@@ -81,7 +81,7 @@ namespace InGame.UI
                 uvRect = new float4(outer.x, outer.y, outer.z, outer.w);
             }
 
-            ctx.AppendQuad(Transform.size, Transform.pivot, Element.LocalToRoot, color, borderRadius, uvRect);
+            ctx.AppendQuad(Transform.size, Element.LocalToRoot, color, borderRadius, uvRect);
         }
     }
 }

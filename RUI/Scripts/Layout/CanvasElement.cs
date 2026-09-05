@@ -135,20 +135,15 @@ namespace InGame.UI
         public Vector4 GetScreenBounds()
         {
 	        Matrix4x4 m = LocalToRoot;
-
-	        float xMin = -transform.size.x * transform.pivot.x;
-	        float yMin = -transform.size.y * transform.pivot.y;
-	        float xMax = xMin + transform.size.x;
-	        float yMax = yMin + transform.size.y;
-
-	        Vector3 p0 = m.MultiplyPoint3x4(new Vector3(xMin, yMin, 0));
-	        Vector3 p1 = m.MultiplyPoint3x4(new Vector3(xMax, yMax, 0));
+	        // Левый нижний и правый верхний углы в мировых координатах экрана
+	        Vector3 pMin = m.MultiplyPoint3x4(Vector3.zero);
+	        Vector3 pMax = m.MultiplyPoint3x4(new Vector3(transform.size.x, transform.size.y, 0));
 
 	        return new Vector4(
-		        Mathf.Min(p0.x, p1.x),
-		        Mathf.Min(p0.y, p1.y),
-		        Mathf.Max(p0.x, p1.x),
-		        Mathf.Max(p0.y, p1.y)
+		        math.min(pMin.x, pMax.x),
+		        math.min(pMin.y, pMax.y),
+		        math.max(pMin.x, pMax.x),
+		        math.max(pMin.y, pMax.y)
 	        );
         }
     }

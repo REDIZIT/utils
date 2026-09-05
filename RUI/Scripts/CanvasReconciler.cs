@@ -136,7 +136,6 @@ namespace InGame.UI
                 case "pos": case "localpos": t.localPos = (float2)CastValue(ConvertValue(expr, typeof(float2)), typeof(float2)); return true;
                 case "w": case "width": t.size.x = (float)CastValue(ConvertValue(expr, typeof(float)), typeof(float)); return true;
                 case "h": case "height": t.size.y = (float)CastValue(ConvertValue(expr, typeof(float)), typeof(float)); return true;
-                case "pivot": t.pivot = (float2)CastValue(ConvertValue(expr, typeof(float2)), typeof(float2)); return true;
                 case "x": t.localPos.x = (float)CastValue(ConvertValue(expr, typeof(float)), typeof(float)); return true;
                 case "y": t.localPos.y = (float)CastValue(ConvertValue(expr, typeof(float)), typeof(float)); return true;
                 default: return false;
