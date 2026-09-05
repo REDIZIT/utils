@@ -9,19 +9,15 @@ namespace InGame.UI
     public class CanvasService
     {
         public DiContainer container;
-        public Dictionary<string, Type> componentTypes = new Dictionary<string, Type>();
+        public Dictionary<string, Type> componentTypes = new();
+        public Dictionary<string, Type> composerTypes = new();
+        public Dictionary<Type, CanvasTemplate> templates = new();
         
-        public readonly Dictionary<string, SubpixelFont> subpixelFontCache = new Dictionary<string, SubpixelFont>();
+        public readonly Dictionary<string, SubpixelFont> subpixelFontCache = new();
         public Material defaultSubpixelMaterial;
         public byte[] defaultFontBytes;
         
         public Material defaultCombinedMaterial;
-        public Material defaultTextMaterial;
-        public TMPro.TMP_FontAsset defaultFont;
-        
-        public Dictionary<Type, CanvasTemplate> templates = new Dictionary<Type, CanvasTemplate>();
-        public readonly Dictionary<int, SubpixelFont> subpixelFontsBySize = new Dictionary<int, SubpixelFont>();
-        
         public UIAssetDatabase assetDatabase;
         
         public CanvasService(DiContainer container)
@@ -31,88 +27,115 @@ namespace InGame.UI
             RegisterAllComponentsFromAssembly(typeof(CanvasComponent).Assembly);
         }
 
-        public void RegisterComponent(Type componentType, string alias = null)
+        private void RegisterComponent(Type componentType, string alias = null)
         {
-            if (!typeof(CanvasComponent).IsAssignableFrom(componentType) || componentType.IsAbstract) return;
-
             string name = string.IsNullOrEmpty(alias) ? componentType.Name : alias;
             componentTypes[name] = componentType;
         }
 
+        private void RegisterComposer(Type composerType, string alias = null)
+        {
+	        string name = string.IsNullOrEmpty(alias) ? composerType.Name.Split('_')[0] : alias;
+	        composerTypes[name] = composerType;
+        }
+
         public void RegisterAllComponentsFromAssembly(Assembly assembly)
         {
-            Type baseType = typeof(CanvasComponent);
+            Type componentBaseType = typeof(CanvasComponent);
+            Type composerInterfaceType = typeof(IComposer);
+            
             Type[] types = assembly.GetTypes();
             
             for (int i = 0; i < types.Length; i++)
             {
                 Type t = types[i];
-                if (baseType.IsAssignableFrom(t) && !t.IsAbstract && !t.IsInterface)
-                {
-                    RegisterComponent(t);
-                }
+                if (t.IsAbstract || t.IsInterface) continue;
+                
+                if (componentBaseType.IsAssignableFrom(t)) RegisterComponent(t);
+                else if (t.IsImplementInterface(composerInterfaceType)) RegisterComposer(t);
             }
         }
 
-		public void CollectTemplates(Node_Element rootNode)
-		{
-		    CollectTemplatesRecursive(rootNode);
-		}
+        public void CollectTemplates(Node_Element rootNode)
+        {
+	        CollectTemplatesRecursive(rootNode);
+        }
 
-		private void CollectTemplatesRecursive(Node_Element node)
-		{
-		    // 1. Проверяем сам текущий узел (вдруг весь файл — это один большой template)
-		    if (node != null && string.Equals(node.key, "template", StringComparison.OrdinalIgnoreCase))
-		    {
+        private void CollectTemplatesRecursive(Node_Element node)
+        {
+	        if (node == null) return;
+
+	        // 1. Проверяем, является ли сам узел шаблоном (для случая, когда весь файл — один шаблон)
+	        if (node.isTemplate)
+	        {
 		        ProcessTemplateNode(node);
-		        return; // Если это шаблон, внутрь него как в обычный DOM идти не нужно
-		    }
+		        // Обычно шаблон — это конечная ветка для поиска других шаблонов, 
+		        // но на всякий случай можно выйти, так как мы его зарегистрировали.
+		        return; 
+	        }
 
-		    // 2. Ищем template среди дочерних элементов
-		    for (int i = node.children.Count - 1; i >= 0; i--)
-		    {
+	        // 2. Ищем шаблоны среди дочерних элементов
+	        for (int i = node.children.Count - 1; i >= 0; i--)
+	        {
 		        Node_Element child = node.children[i];
 
-		        if (string.Equals(child.key, "template", StringComparison.OrdinalIgnoreCase))
+		        if (child.isTemplate)
 		        {
-		            ProcessTemplateNode(child);
-		            // Удаляем узел template из дерева обычных элементов
-		            node.children.RemoveAt(i);
+			        ProcessTemplateNode(child);
+			        // Удаляем узел шаблона из списка детей, чтобы он не попал в обычный рендеринг
+			        node.children.RemoveAt(i);
 		        }
 		        else
 		        {
-		            CollectTemplatesRecursive(child);
+			        CollectTemplatesRecursive(child);
 		        }
-		    }
-		}
+	        }
+        }
 
-		private void ProcessTemplateNode(Node_Element templateNode)
+        private void ProcessTemplateNode(Node_Element templateNode)
+        {
+	        // Ищем тип компонента (например, HierarchyLot) прямо в этом узле или его детях
+	        Type compType = FindFirstComponentType(templateNode);
+    
+	        if (compType == null)
+	        {
+		        Debug.LogError($"[RUI] Ошибка в шаблоне: не найден компонент для определения типа!");
+		        return;
+	        }
+
+	        if (templates.ContainsKey(compType))
+	        {
+		        // Вместо исключения просто перезаписываем (полезно для Hot Reload)
+		        templates[compType] = new CanvasTemplate(compType, templateNode);
+	        }
+	        else
+	        {
+		        templates[compType] = new CanvasTemplate(compType, templateNode);
+	        }
+    
+	        Debug.Log($"<color=lime>[RUI]</color> Зарегистрирован шаблон для типа: <b>{compType.Name}</b>");
+        }
+
+		// Рекурсивный поиск первого попавшегося компонента в AST узле
+		private Type FindFirstComponentType(Node_Element node)
 		{
-			if (templateNode.components.Count == 0)
-			{
-				throw new InvalidOperationException("Блок template { ... } должен содержать хотя бы один компонент для определения типа!");
-			}
+		    if (node.components.Count > 0)
+		    {
+		        if (componentTypes.TryGetValue(node.components[0].typeName, out Type t))
+		            return t;
+		    }
 
-			string firstCompName = templateNode.components[0].typeName;
-			if (!componentTypes.TryGetValue(firstCompName, out Type compType))
-			{
-				throw new InvalidOperationException($"Неизвестный компонент '{firstCompName}' в определении template!");
-			}
-
-			if (templates.ContainsKey(compType))
-			{
-				throw new InvalidOperationException($"Обнаружено дублирование шаблона для типа '{compType.Name}'! Шаблон этого типа уже объявлен.");
-			}
-
-			// Чертеж шаблона строки — это ВСЕГДА сам templateNode!
-			templates[compType] = new CanvasTemplate(compType, templateNode);
+		    foreach (var child in node.children)
+		    {
+		        var found = FindFirstComponentType(child);
+		        if (found != null) return found;
+		    }
+		    return null;
 		}
         
-        public void SetDefaultResources(Material combinedMat, Material textMat, TMPro.TMP_FontAsset font)
+        public void SetDefaultResources(Material combinedMat)
         {
 	        defaultCombinedMaterial = combinedMat;
-	        defaultTextMaterial = textMat;
-	        defaultFont = font;
         }
 
         public void ClearSubpixelCache()

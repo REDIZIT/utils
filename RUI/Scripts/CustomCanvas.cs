@@ -30,6 +30,7 @@ namespace InGame.UI
 
         [Inject] public CanvasService canvasService;
         [Inject] public UIAssetDatabase assetDatabase;
+        [Inject] public CanvasReconciler reconciler;
 
         private string rootFilePath;
 
@@ -59,7 +60,7 @@ namespace InGame.UI
 	        byte[] defaultFont = assetDatabase.fontBytes.Values.FirstOrDefault();
 
 	        canvasService.SetDefaultSubpixelResources(defaultFont, subpixelMat);
-	        canvasService.SetDefaultResources(combinedMaterial, null, fontAsset);
+	        canvasService.SetDefaultResources(combinedMaterial);
         }
 
         private void LoadRootScreen()
@@ -80,8 +81,8 @@ namespace InGame.UI
                 root.onTreeDirty = MarkDirty;
             }
 
-            CanvasReconciler.Reconcile(root, mainNode, canvasService.componentTypes, canvasService.container, canvasService);
-            CanvasReconciler.PostProcessBindings(root, canvasService);
+            reconciler.Reconcile(root, mainNode);
+            reconciler.PostProcessBindings(root);
 
             MarkDirty();
         }

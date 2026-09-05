@@ -32,18 +32,20 @@ namespace InGame.UI
     // Узел CanvasElement (блок { ... })
     public class Node_Element : Node
     {
-        public string key; // Имя/ID элемента (например "StartBtn" или "myBtn")
-        
-        public List<Node_Property> properties = new List<Node_Property>();   // Свойства transform (pos, size)
-        public List<Node_Component> components = new List<Node_Component>(); // Прикрепленные компоненты
-        public List<Node_Element> children = new List<Node_Element>();       // Вложенные элементы
+	    public string key;
+	    public string composerType = "Fill";
+	    public bool isTemplate = false; // Флаг: является ли этот узел шаблоном
+    
+	    public List<Node_Property> properties = new List<Node_Property>();
+	    public List<Node_Component> components = new List<Node_Component>();
+	    public List<Node_Element> children = new List<Node_Element>();
 
-        public override IEnumerable<Node> EnumerateChildren()
-        {
-            foreach (var prop in properties) yield return prop;
-            foreach (var comp in components) yield return comp;
-            foreach (var child in children) yield return child;
-        }
+	    public override IEnumerable<Node> EnumerateChildren()
+	    {
+		    foreach (var prop in properties) yield return prop;
+		    foreach (var comp in components) yield return comp;
+		    foreach (var child in children) yield return child;
+	    }
     }
 
     // Узел компонента (Type#id: { ... } или инлайн)
@@ -99,8 +101,12 @@ namespace InGame.UI
 
     public class Node_TupleLiteral : Node_Expression
     {
-        public List<float> values = new List<float>();
-        public override IEnumerable<Node> EnumerateChildren() { yield break; }
+	    public List<Node_Expression> elements = new List<Node_Expression>();
+
+	    public override IEnumerable<Node> EnumerateChildren()
+	    {
+		    return elements;
+	    }
     }
 
     public class Node_IdentifierReference : Node_Expression

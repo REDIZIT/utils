@@ -20,4 +20,9 @@ public static class CSharpExtensions
 	{
 		return index >= 0 && index < ls.Count();
 	}
+
+	public static bool IsImplementInterface(this Type type, Type interfaceType)
+	{
+		return interfaceType.IsAssignableFrom(type);
+	}
 }

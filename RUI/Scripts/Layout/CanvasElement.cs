@@ -21,7 +21,7 @@ namespace InGame.UI
 
         public CanvasElement()
         {
-	        composer = new Manual_Composer { e = this };
+	        composer = new Absolute_Composer { e = this };
         }
 
         public void MarkDirty()

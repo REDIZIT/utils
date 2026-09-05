@@ -7,434 +7,252 @@ using Zenject;
 
 namespace InGame.UI
 {
-    public static class CanvasReconciler
+    public class CanvasReconciler
     {
-        public static void Reconcile(
-		    CanvasElement element, 
-		    Node_Element node, 
-		    Dictionary<string, Type> componentTypes, 
-		    DiContainer container,
-		    CanvasService service = null)
-		{
-		    // Достаем базу ассетов из сервиса
-		    UIAssetDatabase assetDb = service?.assetDatabase;
+        private readonly CanvasService _service;
+        private readonly DiContainer _container;
 
-		    for (int i = 0; i < node.properties.Count; i++)
-		    {
-		        Node_Property prop = node.properties[i];
-		        ApplyTransformProperty(element.transform, prop.name, prop.value);
-		    }
-
-		    // Передаем assetDb в компоненты!
-		    ReconcileComponents(element, node.components, componentTypes, container, assetDb);
-		    ReconcileChildren(element, node.children, componentTypes, container, service);
-
-		    if (service != null)
-		    {
-		        PostProcessBindings(element, service);
-		    }
-		}
-
-		private static void ReconcileComponents(
-		    CanvasElement element, 
-		    List<Node_Component> componentNodes, 
-		    Dictionary<string, Type> componentTypes, 
-		    DiContainer container,
-		    UIAssetDatabase assetDb) // <--- Добавлен параметр assetDb
-		{
-		    for (int i = 0; i < componentNodes.Count; i++)
-		    {
-		        Node_Component compNode = componentNodes[i];
-
-		        if (!componentTypes.TryGetValue(compNode.typeName, out Type compType))
-		        {
-		            Debug.LogWarning($"[CanvasReconciler] Неизвестный тип компонента '{compNode.typeName}'!");
-		            continue;
-		        }
-
-		        CanvasComponent existingComp = null;
-		        for (int c = 0; c < element.components.Count; c++)
-		        {
-		            if (element.components[c].GetType() == compType)
-		            {
-		                existingComp = element.components[c];
-		                break;
-		            }
-		        }
-
-		        bool isNew = false;
-		        if (existingComp == null)
-		        {
-		            existingComp = (CanvasComponent)container.Instantiate(compType);
-		            existingComp.Element = element;
-		            element.components.Add(existingComp);
-		            isNew = true;
-		        }
-
-		        existingComp.id = compNode.id;
-
-		        for (int p = 0; p < compNode.properties.Count; p++)
-		        {
-		            Node_Property prop = compNode.properties[p];
-		            // Передаем assetDb в ApplyComponentProperty!
-		            ApplyComponentProperty(existingComp, prop, assetDb);
-		        }
-		        
-		        if (compType == typeof(LayoutGroup))
-		        {
-			        element.SetComposer(new Stack_Composer { e = element });
-		        }
-
-		        if (isNew)
-		        {
-		            existingComp.OnAttached();
-		        }
-		    }
-		}
-
-		public static void ApplyComponentProperty(CanvasComponent component, Node_Property prop, UIAssetDatabase assetDb = null)
-		{
-		    Type compType = component.GetType();
-		    const BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase;
-
-		    PropertyInfo property = compType.GetProperty(prop.name, flags);
-		    if (property != null && property.CanWrite)
-		    {
-		        object convertedValue = ConvertExpressionToType(prop.value, property.PropertyType, assetDb);
-		        if (convertedValue != null)
-		        {
-		            property.SetValue(component, convertedValue);
-		        }
-		        return;
-		    }
-
-		    FieldInfo field = compType.GetField(prop.name, flags);
-		    if (field != null)
-		    {
-		        object convertedValue = ConvertExpressionToType(prop.value, field.FieldType, assetDb);
-		        if (convertedValue != null)
-		        {
-		            field.SetValue(component, convertedValue);
-		        }
-		    }
-		}
-
-		public static object ConvertExpressionToType(Node_Expression expr, Type targetType, UIAssetDatabase assetDb = null)
-		{
-		    if (targetType == typeof(string) && expr is Node_StringLiteral str)
-		        return str.value;
-
-		    // Резолвинг Sprite (поддерживаем и "arrow", и arrow без кавычек):
-		    if (targetType == typeof(Sprite) && assetDb != null)
-		    {
-		        string spriteName = null;
-		        if (expr is Node_StringLiteral strNode) spriteName = strNode.value;
-		        else if (expr is Node_IdentifierReference identNode) spriteName = identNode.name;
-
-		        if (!string.IsNullOrEmpty(spriteName))
-		        {
-		            Sprite foundSprite = assetDb.GetSprite(spriteName);
-		            if (foundSprite == null)
-		            {
-		                Debug.LogWarning($"[CanvasReconciler] Спрайт '{spriteName}' не найден в UIAssetDatabase!");
-		            }
-		            return foundSprite;
-		        }
-		    }
-
-		    if (targetType == typeof(float) && expr is Node_NumberLiteral numFloat)
-		        return numFloat.value;
-
-		    if (targetType == typeof(int) && expr is Node_NumberLiteral numInt)
-		        return (int)numInt.value;
-
-		    if (targetType == typeof(bool) && expr is Node_BooleanLiteral b)
-		        return b.value;
-
-		    if (targetType == typeof(Color))
-		    {
-		        if (expr is Node_ColorLiteral col && ColorUtility.TryParseHtmlString(col.hex, out Color parsedColor))
-		        {
-		            if (QualitySettings.activeColorSpace == ColorSpace.Linear)
-		                return parsedColor.linear;
-		            return parsedColor;
-		        }
-		    }
-
-		    if (targetType == typeof(float2))
-		    {
-		        if (expr is Node_TupleLiteral tuple && tuple.values.Count >= 2)
-		            return new float2(tuple.values[0], tuple.values[1]);
-		        if (expr is Node_NumberLiteral scalar)
-		            return new float2(scalar.value, scalar.value);
-		    }
-
-		    if (targetType == typeof(float4))
-		    {
-		        if (expr is Node_TupleLiteral tuple)
-		        {
-		            if (tuple.values.Count == 4)
-		                return new float4(tuple.values[0], tuple.values[1], tuple.values[2], tuple.values[3]);
-		            if (tuple.values.Count == 2)
-		                return new float4(tuple.values[0], tuple.values[1], tuple.values[0], tuple.values[1]);
-		        }
-		        if (expr is Node_NumberLiteral scalar)
-		            return new float4(scalar.value, scalar.value, scalar.value, scalar.value);
-		    }
-
-		    if (targetType.IsEnum)
-		    {
-		        if (expr is Node_IdentifierReference ident)
-		            return Enum.Parse(targetType, ident.name, true);
-		        if (expr is Node_StringLiteral strEnum)
-		            return Enum.Parse(targetType, strEnum.value, true);
-		    }
-
-		    return null;
-		}
-
-        private static void ReconcileChildren(
-            CanvasElement parent, 
-            List<Node_Element> childNodes, 
-            Dictionary<string, Type> componentTypes, 
-            DiContainer container,
-            CanvasService service)
+        public CanvasReconciler(CanvasService service, DiContainer container)
         {
-            Dictionary<string, CanvasElement> existingByKey = new Dictionary<string, CanvasElement>();
-            for (int i = 0; i < parent.children.Count; i++)
-            {
-                CanvasElement child = parent.children[i];
-                if (!string.IsNullOrEmpty(child.key) && !existingByKey.ContainsKey(child.key))
-                {
-                    existingByKey.Add(child.key, child);
-                }
-            }
-
-            List<CanvasElement> updatedChildren = new List<CanvasElement>();
-
-            for (int i = 0; i < childNodes.Count; i++)
-            {
-                Node_Element childAst = childNodes[i];
-                string key = childAst.key;
-
-                CanvasElement targetChild = null;
-
-                if (!string.IsNullOrEmpty(key) && existingByKey.TryGetValue(key, out CanvasElement matched))
-                {
-                    targetChild = matched;
-                    existingByKey.Remove(key);
-                }
-                else if (string.IsNullOrEmpty(key) && i < parent.children.Count && string.IsNullOrEmpty(parent.children[i].key))
-                {
-                    targetChild = parent.children[i];
-                }
-                else
-                {
-                    targetChild = new CanvasElement();
-                    targetChild.key = key;
-                    targetChild.parent = parent;
-                }
-
-                Reconcile(targetChild, childAst, componentTypes, container, service);
-                updatedChildren.Add(targetChild);
-            }
-
-            parent.children.Clear();
-            parent.children.AddRange(updatedChildren);
+            _service = service;
+            _container = container;
         }
 
-        public static void PostProcessBindings(CanvasElement root, CanvasService service)
-        {
-            ResolveElementBindings(root, root, service);
-        }
+        // --- ОСНОВНЫЕ МЕТОДЫ RECONCILE ---
 
-        private static void ResolveElementBindings(CanvasElement current, CanvasElement searchScopeRoot, CanvasService service)
+        public void Reconcile(CanvasElement element, Node_Element node)
         {
-            for (int i = 0; i < current.components.Count; i++)
+            if (_service.composerTypes.TryGetValue(node.composerType, out Type cType))
             {
-                CanvasComponent comp = current.components[i];
-                WireComponentFields(comp, searchScopeRoot, service);
+                if (element.composer == null || element.composer.GetType() != cType)
+                {
+                    element.composer = (IComposer)Activator.CreateInstance(cType);
+                    cType.GetField("e")?.SetValue(element.composer, element);
+                }
             }
 
-            for (int i = 0; i < current.children.Count; i++)
+            foreach (var prop in node.properties)
             {
-                ResolveElementBindings(current.children[i], searchScopeRoot, service);
+                if (!ApplyTransformProperty(element.transform, prop.name, prop.value))
+                {
+                    ApplyComposerProperty(element.composer, prop);
+                }
+            }
+
+            ReconcileComponents(element, node.components);
+            ReconcileChildren(element, node.children);
+        }
+
+        private void ReconcileComponents(CanvasElement element, List<Node_Component> nodes)
+        {
+            foreach (var node in nodes)
+            {
+                if (!_service.componentTypes.TryGetValue(node.typeName, out Type type)) continue;
+
+                CanvasComponent comp = null;
+                foreach (var c in element.components) if (c.GetType() == type) { comp = c; break; }
+
+                bool isNew = comp == null;
+                if (isNew)
+                {
+                    comp = (CanvasComponent)_container.Instantiate(type);
+                    comp.Element = element;
+                    element.components.Add(comp);
+                }
+
+                comp.id = node.id;
+                foreach (var prop in node.properties) ApplyComponentProperty(comp, prop);
+                if (isNew) comp.OnAttached();
             }
         }
 
-        private static void WireComponentFields(CanvasComponent targetComponent, CanvasElement rootScope, CanvasService service)
+        private void ReconcileChildren(CanvasElement parent, List<Node_Element> nodes)
         {
-            Type compType = targetComponent.GetType();
-
-            FieldInfo[] fields = compType.GetFields(
-                BindingFlags.Instance | 
-                BindingFlags.Public | 
-                BindingFlags.NonPublic | 
-                BindingFlags.DeclaredOnly);
-
-            for (int i = 0; i < fields.Length; i++)
+            for (int i = 0; i < nodes.Count; i++)
             {
-                FieldInfo field = fields[i];
-                Type fieldType = field.FieldType;
+                var node = nodes[i];
+                CanvasElement child = null;
 
-                if (field.Name == "Element" || field.Name == "Transform" || field.Name == "id")
-                    continue;
+                if (!string.IsNullOrEmpty(node.key))
+                    child = parent.children.Find(c => c.key == node.key);
+                else if (i < parent.children.Count && string.IsNullOrEmpty(parent.children[i].key))
+                    child = parent.children[i];
 
-                // 1. Поле ожидает CanvasElement
-                if (fieldType == typeof(CanvasElement))
+                if (child == null)
                 {
-                    CanvasElement matchedElement = FindElementByKey(rootScope, field.Name);
-                    if (matchedElement != null)
-                        field.SetValue(targetComponent, matchedElement);
-                    continue;
+                    child = new CanvasElement { key = node.key, parent = parent };
+                    parent.children.Add(child);
                 }
 
-                // 2. Поле ожидает компонент
-                if (typeof(CanvasComponent).IsAssignableFrom(fieldType))
-                {
-                    // А. Проверяем: может поле ожидает шаблон лота (например, private HierarchyLot lotTemplate)?
-                    if (service != null && service.templates.TryGetValue(fieldType, out CanvasTemplate template))
-                    {
-                        // Создаем фантомный экземпляр-маркер для передачи в container.Refresh(lotTemplate, ...)
-                        var dummyInstance = Activator.CreateInstance(fieldType);
-                        field.SetValue(targetComponent, dummyInstance);
-                        continue;
-                    }
+                Reconcile(child, node);
+            }
 
-                    // Б. Поиск по ID компонента (Button#myStartBtn)
-                    CanvasComponent matchedComp = FindComponentById(rootScope, fieldType, field.Name);
+            if (parent.children.Count > nodes.Count)
+                parent.children.RemoveRange(nodes.Count, parent.children.Count - nodes.Count);
+        }
 
-                    // В. Поиск по имени элемента
-                    if (matchedComp == null)
-                    {
-                        CanvasElement matchedElem = FindElementByKey(rootScope, field.Name);
-                        if (matchedElem != null)
-                        {
-                            matchedComp = matchedElem.GetComponent(fieldType);
-                        }
-                    }
+        // --- ПРИМЕНЕНИЕ СВОЙСТВ ---
 
-                    // Г. Поиск по типу (для LotsContainer, где имя поля произвольное)
-                    if (matchedComp == null)
-                    {
-                        matchedComp = FindComponentByType(targetComponent.Element, fieldType);
-                        if (matchedComp == null)
-                        {
-                            matchedComp = FindComponentByType(rootScope, fieldType);
-                        }
-                    }
+        private void ApplyComponentProperty(CanvasComponent comp, Node_Property prop)
+        {
+            var flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase;
+            var member = (MemberInfo)comp.GetType().GetProperty(prop.name, flags) ?? comp.GetType().GetField(prop.name, flags);
+            if (member == null) return;
 
-                    if (matchedComp != null)
-                    {
-                        field.SetValue(targetComponent, matchedComp);
-                    }
-                }
+            Type targetType = member is PropertyInfo p ? p.PropertyType : ((FieldInfo)member).FieldType;
+            object rawVal = ConvertValue(prop.value, targetType);
+            object finalVal = CastValue(rawVal, targetType);
+
+            if (finalVal != null)
+            {
+                if (member is PropertyInfo p2) p2.SetValue(comp, finalVal);
+                else ((FieldInfo)member).SetValue(comp, finalVal);
             }
         }
 
-        private static CanvasComponent FindComponentById(CanvasElement element, Type targetType, string id)
+        private void ApplyComposerProperty(IComposer composer, Node_Property prop)
         {
-            for (int i = 0; i < element.components.Count; i++)
-            {
-                CanvasComponent c = element.components[i];
-                if (targetType.IsAssignableFrom(c.GetType()) && string.Equals(c.id, id, StringComparison.OrdinalIgnoreCase))
-                    return c;
-            }
+            if (composer == null) return;
+            var flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase;
+            var member = (MemberInfo)composer.GetType().GetProperty(prop.name, flags) ?? composer.GetType().GetField(prop.name, flags);
+            if (member == null) return;
 
-            for (int i = 0; i < element.children.Count; i++)
-            {
-                CanvasComponent found = FindComponentById(element.children[i], targetType, id);
-                if (found != null) return found;
-            }
+            Type targetType = member is PropertyInfo p ? p.PropertyType : ((FieldInfo)member).FieldType;
+            object rawVal = ConvertValue(prop.value, targetType);
+            object finalVal = CastValue(rawVal, targetType);
 
+            if (finalVal != null)
+            {
+                if (member is PropertyInfo p2) p2.SetValue(composer, finalVal);
+                else ((FieldInfo)member).SetValue(composer, finalVal);
+            }
+        }
+
+        private bool ApplyTransformProperty(CanvasTransform t, string name, Node_Expression expr)
+        {
+            switch (name.ToLower())
+            {
+                case "size": t.size = (float2)CastValue(ConvertValue(expr, typeof(float2)), typeof(float2)); return true;
+                case "pos": case "localpos": t.localPos = (float2)CastValue(ConvertValue(expr, typeof(float2)), typeof(float2)); return true;
+                case "w": case "width": t.size.x = (float)CastValue(ConvertValue(expr, typeof(float)), typeof(float)); return true;
+                case "h": case "height": t.size.y = (float)CastValue(ConvertValue(expr, typeof(float)), typeof(float)); return true;
+                case "pivot": t.pivot = (float2)CastValue(ConvertValue(expr, typeof(float2)), typeof(float2)); return true;
+                case "x": t.localPos.x = (float)CastValue(ConvertValue(expr, typeof(float)), typeof(float)); return true;
+                case "y": t.localPos.y = (float)CastValue(ConvertValue(expr, typeof(float)), typeof(float)); return true;
+                default: return false;
+            }
+        }
+
+        // --- КОНВЕРТАЦИЯ И ПРИВЕДЕНИЕ ТИПОВ ---
+
+        private object ConvertValue(Node_Expression expr, Type target)
+        {
+            if (expr is Node_NumberLiteral n) return n.value;
+            if (expr is Node_StringLiteral s)
+            {
+                if (target == typeof(Sprite)) return _service.assetDatabase.GetSprite(s.value);
+                return s.value;
+            }
+            if (expr is Node_BooleanLiteral b) return b.value;
+            if (expr is Node_ColorLiteral c)
+            {
+                ColorUtility.TryParseHtmlString(c.hex, out Color col);
+                return QualitySettings.activeColorSpace == ColorSpace.Linear ? col.linear : col;
+            }
+            if (expr is Node_IdentifierReference id)
+            {
+                if (id.name == "auto") return 0f;
+                if (id.name == "fill") return float.PositiveInfinity;
+                if (target.IsEnum) return Enum.Parse(target, id.name, true);
+                if (target == typeof(Sprite)) return _service.assetDatabase.GetSprite(id.name);
+                return id.name;
+            }
+            if (expr is Node_TupleLiteral t)
+            {
+                if (target == typeof(float2)) 
+                    return new float2((float)CastValue(ConvertValue(t.elements[0], typeof(float)), typeof(float)), (float)CastValue(ConvertValue(t.elements[1], typeof(float)), typeof(float)));
+                if (target == typeof(float4))
+                    return new float4((float)CastValue(ConvertValue(t.elements[0], typeof(float)), typeof(float)), (float)CastValue(ConvertValue(t.elements[1], typeof(float)), typeof(float)), (float)CastValue(ConvertValue(t.elements[2], typeof(float)), typeof(float)), (float)CastValue(ConvertValue(t.elements[3], typeof(float)), typeof(float)));
+            }
             return null;
         }
 
-        private static CanvasComponent FindComponentByType(CanvasElement element, Type targetType)
+        // Умное приведение типов: обрабатывает примитивы и расширение скаляров в векторы Unity.Mathematics
+        private object CastValue(object val, Type targetType)
         {
-            for (int i = 0; i < element.components.Count; i++)
+            if (val == null) return null;
+            Type valType = val.GetType();
+
+            // 1. Если типы уже совпадают
+            if (targetType.IsAssignableFrom(valType)) return val;
+
+            // 2. Если нужно расширить число (float) до вектора (float2/float4)
+            if (val is float f)
             {
-                CanvasComponent c = element.components[i];
-                if (targetType.IsAssignableFrom(c.GetType()))
-                    return c;
+                if (targetType == typeof(float2)) return new float2(f, f);
+                if (targetType == typeof(float4)) return new float4(f, f, f, f);
+                if (targetType == typeof(int)) return (int)f;
+                if (targetType == typeof(double)) return (double)f;
+                if (targetType == typeof(byte)) return (byte)f;
             }
 
-            for (int i = 0; i < element.children.Count; i++)
+            // 3. Стандартная конвертация для примитивов (int, float, и т.д.)
+            try
             {
-                CanvasComponent found = FindComponentByType(element.children[i], targetType);
-                if (found != null) return found;
+                return Convert.ChangeType(val, targetType, System.Globalization.CultureInfo.InvariantCulture);
             }
+            catch
+            {
+                return null;
+            }
+        }
 
+        // --- POST PROCESS BINDINGS (Авто-связывание полей) ---
+
+        public void PostProcessBindings(CanvasElement root)
+        {
+            foreach (var comp in root.components) WireFields(comp, root);
+            foreach (var child in root.children) PostProcessBindings(child);
+        }
+
+        private void WireFields(CanvasComponent target, CanvasElement root)
+        {
+            var fields = target.GetType().GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+            foreach (var field in fields)
+            {
+                if (field.Name == "Element" || field.Name == "Transform" || field.Name == "id") continue;
+
+                object value = null;
+                if (typeof(CanvasComponent).IsAssignableFrom(field.FieldType))
+                {
+                    if (_service.templates.ContainsKey(field.FieldType)) value = Activator.CreateInstance(field.FieldType);
+                    else value = FindComponentById(root, field.FieldType, field.Name) ?? FindComponentByType(root, field.FieldType);
+                }
+                else if (field.FieldType == typeof(CanvasElement)) value = FindElementByKey(root, field.Name);
+
+                if (value != null) field.SetValue(target, value);
+            }
+        }
+
+        private CanvasComponent FindComponentById(CanvasElement e, Type t, string id)
+        {
+            foreach (var c in e.components) if (t.IsAssignableFrom(c.GetType()) && string.Equals(c.id, id, StringComparison.OrdinalIgnoreCase)) return c;
+            foreach (var child in e.children) { var f = FindComponentById(child, t, id); if (f != null) return f; }
             return null;
         }
 
-        private static CanvasElement FindElementByKey(CanvasElement element, string key)
+        private CanvasComponent FindComponentByType(CanvasElement e, Type t)
         {
-            if (string.Equals(element.key, key, StringComparison.OrdinalIgnoreCase))
-                return element;
-
-            for (int i = 0; i < element.children.Count; i++)
-            {
-                CanvasElement found = FindElementByKey(element.children[i], key);
-                if (found != null) return found;
-            }
-
+            foreach (var c in e.components) if (t.IsAssignableFrom(c.GetType())) return c;
+            foreach (var child in e.children) { var f = FindComponentByType(child, t); if (f != null) return f; }
             return null;
         }
 
-        public static bool ApplyTransformProperty(CanvasTransform transform, string name, Node_Expression expr)
+        private CanvasElement FindElementByKey(CanvasElement e, string key)
         {
-            string lower = name.ToLowerInvariant();
-
-            if (lower == "size")
-            {
-                if (expr is Node_TupleLiteral tuple && tuple.values.Count >= 2)
-                    transform.size = new float2(tuple.values[0], tuple.values[1]);
-                else if (expr is Node_NumberLiteral num)
-                    transform.size = new float2(num.value, num.value);
-                return true;
-            }
-
-            if (lower == "width" || lower == "w")
-            {
-                if (expr is Node_NumberLiteral num) transform.size.x = num.value;
-                return true;
-            }
-
-            if (lower == "height" || lower == "h")
-            {
-                if (expr is Node_NumberLiteral num) transform.size.y = num.value;
-                return true;
-            }
-
-            if (lower == "localpos" || lower == "pos")
-            {
-                if (expr is Node_TupleLiteral tuple && tuple.values.Count >= 2)
-                    transform.localPos = new float2(tuple.values[0], tuple.values[1]);
-                else if (expr is Node_NumberLiteral num)
-                    transform.localPos = new float2(num.value, num.value);
-                return true;
-            }
-
-            if (lower == "scale")
-            {
-                if (expr is Node_TupleLiteral tuple && tuple.values.Count >= 2)
-                    transform.scale = new float2(tuple.values[0], tuple.values[1]);
-                else if (expr is Node_NumberLiteral num)
-                    transform.scale = new float2(num.value, num.value);
-                return true;
-            }
-
-            if (lower == "pivot")
-            {
-	            if (expr is Node_TupleLiteral tuple && tuple.values.Count >= 2)
-		            transform.pivot = new float2(tuple.values[0], tuple.values[1]);
-	            else if (expr is Node_NumberLiteral num)
-		            transform.pivot = new float2(num.value, num.value);
-	            return true;
-            }
-            
-            return false;
+            if (string.Equals(e.key, key, StringComparison.OrdinalIgnoreCase)) return e;
+            foreach (var child in e.children) { var f = FindElementByKey(child, key); if (f != null) return f; }
+            return null;
         }
     }
 }

@@ -30,73 +30,87 @@ namespace InGame.UI
 
         // Парсинг CanvasElement:
         // { ... }
-        // StartBtn { ... }
-        // #StartBtn { ... }
         public static Node_Element ParseElement()
-        {
-            SkipTerminators();
+		{
+		    SkipTerminators();
+		    
+		    // ЗАЩИТА ОТ БЕСКОНЕЧНОГО ЦИКЛА: запоминаем стартовую позицию
+		    int startTokenIndex = current;
 
-            string key = null;
+		    bool isTemplate = false;
+		    if (Check<Token_Identifier>() && Peek<Token_Identifier>(0).name == "template")
+		    {
+		        Consume<Token_Identifier>();
+		        isTemplate = true;
+		        SkipTerminators();
+		    }
 
-            // Вариант 1: Имя элемента StartBtn { ... }
-            if (Check<Token_Identifier>() && (Check<Token_BlockOpen>(1) || Check<Token_Hash>(1)))
-            {
-                Token_Identifier ident = Consume<Token_Identifier>();
-                key = ident.name;
+		    string composerType = "Fill";
+		    if (Check<Token_Identifier>())
+		    {
+		        composerType = Consume<Token_Identifier>().name;
+		    }
 
-                if (Check<Token_Hash>())
-                {
-                    Consume<Token_Hash>();
-                    key = Consume<Token_Identifier>("Ожидался ID после #").name;
-                }
-            }
-            // Вариант 2: #myBtn { ... }
-            else if (Check<Token_Hash>())
-            {
-                Consume<Token_Hash>();
-                key = Consume<Token_Identifier>("Ожидался ID после #").name;
-            }
+		    string key = null;
+		    if (Check<Token_Hash>())
+		    {
+		        Consume<Token_Hash>();
+		        key = Consume<Token_Identifier>("Ожидался ID").name;
+		    }
 
-            SkipTerminators();
-            Consume<Token_BlockOpen>("Ожидалась открывающая '{' блока элемента.");
+		    Node_Element element = new Node_Element { 
+		        key = key, 
+		        composerType = composerType, 
+		        isTemplate = isTemplate 
+		    };
 
-            Node_Element element = new Node_Element { key = key };
+		    if (Check<Token_BracketOpen>())
+		    {
+		        Consume<Token_BracketOpen>();
+		        SkipTerminators();
+		        while (!IsAtEnd() && !Check<Token_BracketClose>())
+		        {
+		            Token_Identifier propName = Consume<Token_Identifier>();
+		            Consume<Token_Assign>();
+		            element.properties.Add(new Node_Property { name = propName.name, value = ParseExpression() });
+		            if (Check<Token_Comma>()) Consume<Token_Comma>();
+		            else break;
+		            SkipTerminators();
+		        }
+		        Consume<Token_BracketClose>();
+		    }
 
-            SkipTerminators();
+		    SkipTerminators();
 
-            // Читаем содержимое блока элемента до закрывающей '}'
-            while (!IsAtEnd() && !Check<Token_BlockClose>())
-            {
-                // 1. Компонент: Type: ... или Type#id: ... или Type { ... }
-                if (IsComponentStart())
-                {
-                    element.components.Add(ParseComponent());
-                }
-                // 2. Свойство трансформации элемента: pos = ..., size = ...
-                else if (Check<Token_Identifier>() && Check<Token_Assign>(1))
-                {
-                    Token_Identifier propName = Consume<Token_Identifier>();
-                    Consume<Token_Assign>();
-                    Node_Expression expr = ParseExpression();
-                    element.properties.Add(new Node_Property { name = propName.name, value = expr });
-                }
-                // 3. Дочерний элемент (вложенный блок {})
-                else if (Check<Token_BlockOpen>() || Check<Token_Hash>() || (Check<Token_Identifier>() && Check<Token_BlockOpen>(1)))
-                {
-                    element.children.Add(ParseElement());
-                }
-                else
-                {
-                    Token got = Peek();
-                    throw new Exception($"Неожиданный токен '{got.GetType().Name}' на строке {got.line}");
-                }
+		    if (Check<Token_BlockOpen>())
+		    {
+		        Consume<Token_BlockOpen>();
+		        SkipTerminators();
+		        while (!IsAtEnd() && !Check<Token_BlockClose>())
+		        {
+		            if (IsComponentStart()) element.components.Add(ParseComponent());
+		            else if (Check<Token_Identifier>() && Check<Token_Assign>(1)) 
+		            {
+		                Token_Identifier propName = Consume<Token_Identifier>();
+		                Consume<Token_Assign>();
+		                element.properties.Add(new Node_Property { name = propName.name, value = ParseExpression() });
+		            }
+		            else element.children.Add(ParseElement());
+		            
+		            SkipTerminators();
+		        }
+		        Consume<Token_BlockClose>();
+		    }
 
-                SkipTerminators();
-            }
+		    // ЕСЛИ ПАРСЕР НИЧЕГО НЕ ПРОЧИТАЛ — ЭТО СИНТАКСИЧЕСКАЯ ОШИБКА И ЗАВИСАНИЕ!
+		    if (current == startTokenIndex)
+		    {
+		        Token errorToken = IsAtEnd() ? new Token_EOF() : Peek();
+		        throw new Exception($"[RUI Parser] Синтаксическая ошибка! Неизвестный токен '{errorToken.GetType().Name}' на строке {errorToken.line}.");
+		    }
 
-            Consume<Token_BlockClose>("Ожидалась закрывающая '}' блока элемента.");
-            return element;
-        }
+		    return element;
+		}
 
         private static bool IsComponentStart()
         {
@@ -195,26 +209,27 @@ namespace InGame.UI
             // Векторы/кортежи: (300, 200) или (16, 16, 16, 16)
             if (Check<Token_BracketOpen>())
             {
-                Consume<Token_BracketOpen>();
-                Node_TupleLiteral tuple = new Node_TupleLiteral();
+	            Consume<Token_BracketOpen>();
+	            Node_TupleLiteral tuple = new Node_TupleLiteral();
 
-                while (!Check<Token_BracketClose>())
-                {
-                    Token_Number numToken = Consume<Token_Number>("Ожидалось число в кортеже.");
-                    tuple.values.Add(float.Parse(numToken.word, CultureInfo.InvariantCulture));
+	            while (!Check<Token_BracketClose>())
+	            {
+		            // Рекурсивно парсим выражение (число или идентификатор)
+		            tuple.elements.Add(ParseExpression());
 
-                    if (Check<Token_Comma>())
-                    {
-                        Consume<Token_Comma>();
-                    }
-                    else
-                    {
-                        break;
-                    }
-                }
+		            if (Check<Token_Comma>())
+		            {
+			            Consume<Token_Comma>();
+			            SkipTerminators();
+		            }
+		            else
+		            {
+			            break;
+		            }
+	            }
 
-                Consume<Token_BracketClose>("Ожидалась ')' закрывающая кортеж.");
-                return tuple;
+	            Consume<Token_BracketClose>("Ожидалась ')' закрывающая кортеж.");
+	            return tuple;
             }
 
             if (Check<Token_Number>())
@@ -267,6 +282,11 @@ namespace InGame.UI
         public static bool IsAtEnd() => current >= tokens.Count;
 
         public static Token Peek(int offset = 0) => tokens[current + offset];
+        
+        public static T Peek<T>(int offset = 0) where T : Token
+        {
+	        return (T)Peek(offset);
+        }
 
         public static Token Previous() => tokens[current - 1];
 
