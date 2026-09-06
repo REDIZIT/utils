@@ -102,6 +102,12 @@ namespace REDIZIT.RUI
 		        fontMaterial.mainTexture = subpixelFont.AtlasTexture;
 	        }
         }
+        
+        public override float2 GetPreferredSize()
+        {
+	        if (subpixelFont != null) return TextEngine.MeasureSubpixel(text, subpixelFont);
+	        return float2.zero;
+        }
 
         public override void GenerateMesh(CanvasGenerationContext ctx)
         {

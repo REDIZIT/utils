@@ -127,11 +127,6 @@ namespace REDIZIT.RUI
 	        return composer.Solve(constraints);
         }
         
-        public void SetComposer(IComposer newComposer)
-        {
-	        composer = newComposer;
-        }
-        
         public Vector4 GetScreenBounds()
         {
 	        Matrix4x4 m = LocalToRoot;
@@ -145,6 +140,16 @@ namespace REDIZIT.RUI
 		        math.max(pMin.x, pMax.x),
 		        math.max(pMin.y, pMax.y)
 	        );
+        }
+        
+        public float2 GetPreferredContentSize()
+        {
+	        float2 contentSize = float2.zero;
+	        for (int i = 0; i < components.Count; i++)
+	        {
+		        contentSize = math.max(contentSize, components[i].GetPreferredSize());
+	        }
+	        return contentSize;
         }
     }
 }

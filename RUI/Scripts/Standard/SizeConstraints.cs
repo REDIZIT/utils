@@ -15,7 +15,7 @@ namespace REDIZIT.RUI
 
 		public float2 Constrain(float2 size) => math.clamp(size, min, max);
         
-		public static SizeConstraints Loose(float2 max) => new SizeConstraints(float2.zero, max);
-		public static SizeConstraints Tight(float2 size) => new SizeConstraints(size, size);
+		public static SizeConstraints Loose(float2 max) => new(float2.zero, max);
+		public static SizeConstraints Tight(float2 size) => new(size, size);
 	}
 }

@@ -1,4 +1,6 @@
-﻿namespace REDIZIT.RUI
+﻿using Unity.Mathematics;
+
+namespace REDIZIT.RUI
 {
 	public abstract class CanvasComponent
 	{
@@ -30,5 +32,7 @@
 
 		public virtual void GenerateMesh(CanvasGenerationContext ctx) { }
 		public virtual void Update() { }
+
+		public virtual float2 GetPreferredSize() => 0;
 	}
 }
