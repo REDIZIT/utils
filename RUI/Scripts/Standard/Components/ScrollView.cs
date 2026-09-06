@@ -44,8 +44,8 @@ namespace REDIZIT.RUI
             float scrollDelta = Input.mouseScrollDelta.y;
             if (Mathf.Abs(scrollDelta) < 0.001f) return;
 
-            float viewportHeight = Transform.size.y;
-            float contentHeight = contentElement.transform.size.y;
+            float viewportHeight = Transform.calculatedSize.y;
+            float contentHeight = contentElement.transform.calculatedSize.y;
             float maxScroll = Mathf.Max(0f, contentHeight - viewportHeight);
 
             scrollPosition += -scrollDelta * scrollSpeed;
@@ -54,8 +54,8 @@ namespace REDIZIT.RUI
 
         private void ApplyPosition()
         {
-	        float viewportHeight = Transform.size.y;
-	        float contentHeight = contentElement.transform.size.y;
+	        float viewportHeight = Transform.calculatedSize.y;
+	        float contentHeight = contentElement.transform.calculatedSize.y;
 	        float maxScroll = Mathf.Max(0f, contentHeight - viewportHeight);
 
 	        scrollPosition = Mathf.Clamp(scrollPosition, 0f, maxScroll);

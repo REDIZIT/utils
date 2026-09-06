@@ -9,19 +9,23 @@ namespace REDIZIT.RUI
 
 		public float2 Solve(SizeConstraints c)
 		{
-			// Решаем вложенных детей в пределах выделенного места
+			CanvasTransform t = e.transform;
+
 			for (int i = 0; i < e.children.Count; i++)
 			{
-				e.children[i].SolveLayout(SizeConstraints.Loose(c.max));
+				if (!e.children[i].isEnabled) continue;
+				e.children[i].SolveLayout(SizeConstraints.Loose(c.maxX, c.maxY));
 			}
 
-			// Expanded всегда занимает ровно то пространство, которое ему выделил родитель
-			float2 finalSize = c.max;
-			if (float.IsInfinity(finalSize.x)) finalSize.x = e.transform.size.x;
-			if (float.IsInfinity(finalSize.y)) finalSize.y = e.transform.size.y;
+			float2 contentSize = e.GetPreferredContentSize();
 
-			e.transform.size = finalSize;
-			return finalSize;
+			float2 preferred = float2.zero;
+			preferred.x = c.maxX ?? (t.width ?? contentSize.x);
+			preferred.y = c.maxY ?? (t.height ?? contentSize.y);
+
+			float2 finalSize = c.Constrain(preferred);
+			t.calculatedSize = finalSize;
+			return t.calculatedSize;
 		}
 	}
 }

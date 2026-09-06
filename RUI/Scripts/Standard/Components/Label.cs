@@ -127,7 +127,7 @@ namespace REDIZIT.RUI
 	        }
 
 	        // Раскладываем глифы
-	        TextEngine.LayoutSubpixel(text, subpixelFont, Transform.size, alignment, cachedGlyphs);
+	        TextEngine.LayoutSubpixel(text, subpixelFont, Transform.calculatedSize, alignment, cachedGlyphs);
 
 	        ctx.SetMaterial(fontMaterial);
 

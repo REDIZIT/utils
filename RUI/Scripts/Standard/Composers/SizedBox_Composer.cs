@@ -8,39 +8,38 @@ namespace REDIZIT.RUI
 
 		public float2 Solve(SizeConstraints c)
 		{
-			float2 preferred = e.transform.size;
-            
-			// Если размер элемента не задан в разметке, опрашиваем компоненты (Label/Image)
-			float2 contentSize = e.GetPreferredContentSize();
-			if (preferred.x < 0) preferred.x = contentSize.x;
-			if (preferred.y < 0) preferred.y = contentSize.y;
+			CanvasTransform t = e.transform;
 
 			// Ограничения для детей:
-			// По ширине дети ограничены шириной этого SizedBox!
-			float2 childMax = new float2(
-				preferred.x > 0 ? preferred.x : c.max.x,
-				preferred.y > 0 ? preferred.y : c.max.y
-			);
+			float? childMaxX = t.width ?? c.maxX;
+			float? childMaxY = t.height ?? c.maxY;
 
-			// Если на элементе висит ScrollView, он разблокирует бесконечность по оси Y
+			// ScrollView снимает ограничение по Y (делает его null / auto)
 			if (e.GetComponent<ScrollView>() != null)
 			{
-				childMax.y = float.PositiveInfinity;
+				childMaxY = null;
 			}
 
+			SizeConstraints childConstraints = SizeConstraints.Loose(childMaxX, childMaxY);
+            
 			float2 childrenMax = float2.zero;
 			for (int i = 0; i < e.children.Count; i++)
 			{
-				float2 childSize = e.children[i].SolveLayout(SizeConstraints.Loose(childMax));
+				if (!e.children[i].isEnabled) continue;
+				float2 childSize = e.children[i].SolveLayout(childConstraints);
 				childrenMax = math.max(childrenMax, e.children[i].transform.localPos + childSize);
 			}
 
-			if (preferred.x < 0) preferred.x = childrenMax.x;
-			if (preferred.y < 0) preferred.y = childrenMax.y;
+			float2 contentSize = e.GetPreferredContentSize();
+			float2 autoSize = math.max(childrenMax, contentSize);
 
-			float2 finalSize = c.Constrain(preferred);
-			e.transform.size = finalSize;
-			return finalSize;
+			// Если размер задан (not null, даже 0) — используем его! Если null — берем autoSize:
+			float2 preferred = float2.zero;
+			preferred.x = t.width ?? autoSize.x;
+			preferred.y = t.height ?? autoSize.y;
+
+			t.calculatedSize = c.Constrain(preferred);
+			return t.calculatedSize;
 		}
 	}
 }

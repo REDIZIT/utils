@@ -140,16 +140,53 @@ namespace REDIZIT.RUI
 
         private bool ApplyTransformProperty(CanvasTransform t, string name, Node_Expression expr)
         {
-            switch (name.ToLower())
-            {
-                case "size": t.size = (float2)CastValue(ConvertValue(expr, typeof(float2)), typeof(float2)); return true;
-                case "pos": case "localpos": t.localPos = (float2)CastValue(ConvertValue(expr, typeof(float2)), typeof(float2)); return true;
-                case "w": case "width": t.size.x = (float)CastValue(ConvertValue(expr, typeof(float)), typeof(float)); return true;
-                case "h": case "height": t.size.y = (float)CastValue(ConvertValue(expr, typeof(float)), typeof(float)); return true;
-                case "x": t.localPos.x = (float)CastValue(ConvertValue(expr, typeof(float)), typeof(float)); return true;
-                case "y": t.localPos.y = (float)CastValue(ConvertValue(expr, typeof(float)), typeof(float)); return true;
-                default: return false;
-            }
+	        switch (name.ToLower())
+	        {
+		        case "size":
+			        if (expr is Node_TupleLiteral tuple && tuple.elements.Count >= 2)
+			        {
+				        t.width = ParseDimension(tuple.elements[0]);
+				        t.height = ParseDimension(tuple.elements[1]);
+			        }
+			        else
+			        {
+				        float? dim = ParseDimension(expr);
+				        t.width = dim;
+				        t.height = dim;
+			        }
+			        return true;
+
+		        case "w": 
+		        case "width": 
+			        t.width = ParseDimension(expr); 
+			        return true;
+
+		        case "h": 
+		        case "height": 
+			        t.height = ParseDimension(expr); 
+			        return true;
+
+		        case "pos": 
+		        case "localpos": 
+			        t.localPos = (float2)CastValue(ConvertValue(expr, typeof(float2)), typeof(float2)); 
+			        return true;
+
+		        case "x": 
+			        t.localPos.x = (float)CastValue(ConvertValue(expr, typeof(float)), typeof(float)); 
+			        return true;
+
+		        case "y": 
+			        t.localPos.y = (float)CastValue(ConvertValue(expr, typeof(float)), typeof(float)); 
+			        return true;
+
+		        case "angle": 
+		        case "rot": 
+			        t.angle = (float)CastValue(ConvertValue(expr, typeof(float)), typeof(float)); 
+			        return true;
+
+		        default: 
+			        return false;
+	        }
         }
 
         // --- КОНВЕРТАЦИЯ И ПРИВЕДЕНИЕ ТИПОВ ---
@@ -215,6 +252,14 @@ namespace REDIZIT.RUI
             {
                 return null;
             }
+        }
+        
+        private static float? ParseDimension(Node_Expression expr)
+        {
+	        if (expr is Node_NumberLiteral num) return num.value;
+	        if (expr is Node_IdentifierReference id && id.name.Equals("auto", StringComparison.OrdinalIgnoreCase))
+		        return null; // auto = null!
+	        return null;
         }
 
         // --- POST PROCESS BINDINGS (Авто-связывание полей) ---

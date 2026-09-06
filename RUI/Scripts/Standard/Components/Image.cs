@@ -101,7 +101,7 @@ namespace REDIZIT.RUI
             Material targetMat = spriteMaterialInstance != null ? spriteMaterialInstance : material;
             if (targetMat == null) return;
 
-            float2 totalSize = Transform.size;
+            float2 totalSize = Transform.calculatedSize;
             if (totalSize.x <= 0 || totalSize.y <= 0) return;
 
             ctx.SetMaterial(targetMat);

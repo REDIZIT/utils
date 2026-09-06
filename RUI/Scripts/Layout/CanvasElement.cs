@@ -142,10 +142,10 @@ namespace REDIZIT.RUI
         {
             Matrix4x4 m = LocalToRoot;
 
-            Vector3 p0 = m.MultiplyPoint3x4(new Vector3(0, 0, 0));
-            Vector3 p1 = m.MultiplyPoint3x4(new Vector3(transform.size.x, 0, 0));
-            Vector3 p2 = m.MultiplyPoint3x4(new Vector3(0, transform.size.y, 0));
-            Vector3 p3 = m.MultiplyPoint3x4(new Vector3(transform.size.x, transform.size.y, 0));
+            Vector3 p0 = m.MultiplyPoint3x4(new(0, 0, 0));
+            Vector3 p1 = m.MultiplyPoint3x4(new(transform.calculatedSize.x, 0, 0));
+            Vector3 p2 = m.MultiplyPoint3x4(new(0, transform.calculatedSize.y, 0));
+            Vector3 p3 = m.MultiplyPoint3x4(new(transform.calculatedSize.x, transform.calculatedSize.y, 0));
 
             float minX = math.min(math.min(p0.x, p1.x), math.min(p2.x, p3.x));
             float minY = math.min(math.min(p0.y, p1.y), math.min(p2.y, p3.y));

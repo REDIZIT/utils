@@ -16,27 +16,31 @@ namespace REDIZIT.RUI
 
             float2 totalPadding = new float2(padding.x + padding.z, padding.y + padding.w);
 
-            float2 innerMax = c.max;
-            if (!float.IsPositiveInfinity(innerMax[cross]))
-                innerMax[cross] -= totalPadding[cross];
+            float? innerCrossMax = (cross == 0 ? c.maxX : c.maxY);
+            if (innerCrossMax.HasValue)
+            {
+                innerCrossMax -= totalPadding[cross];
+            }
 
             float fixedMainConsumed = 0;
             float crossMax = 0;
             float totalFlex = 0;
             int expandedCount = 0;
-            int activeChildrenCount = 0;
+            int activeCount = 0;
 
-            float2 selfContent = e.GetPreferredContentSize();
-            if (selfContent[cross] > 0) crossMax = math.max(crossMax, selfContent[cross]);
-            if (e.transform.size[cross] > 0) crossMax = math.max(crossMax, e.transform.size[cross] - totalPadding[cross]);
+            // Учитываем собственный размер контейнера (если задан)
+            float? selfCross = (cross == 0 ? e.transform.width : e.transform.height);
+            if (selfCross.HasValue)
+            {
+                crossMax = math.max(crossMax, selfCross.Value - totalPadding[cross]);
+            }
 
-            // ПАСС 1: Замеряем только активных не-Expanded детей
+            // ПАСС 1: Замеряем не-Expanded детей
             for (int i = 0; i < e.children.Count; i++)
             {
                 CanvasElement child = e.children[i];
-                if (!child.isEnabled) continue; // Пропуск выключенных!
-
-                activeChildrenCount++;
+                if (!child.isEnabled) continue;
+                activeCount++;
 
                 if (child.composer is Expanded_Composer exp)
                 {
@@ -45,23 +49,23 @@ namespace REDIZIT.RUI
                 }
                 else
                 {
-                    float2 childSize = child.SolveLayout(SizeConstraints.Loose(innerMax));
+                    SizeConstraints childC = (main == 0)
+                        ? SizeConstraints.Loose(null, innerCrossMax)
+                        : SizeConstraints.Loose(innerCrossMax, null);
+
+                    float2 childSize = child.SolveLayout(childC);
                     fixedMainConsumed += childSize[main];
                     crossMax = math.max(crossMax, childSize[cross]);
                 }
             }
 
-            float totalSpacing = math.max(0, activeChildrenCount - 1) * spacing;
+            float totalSpacing = math.max(0, activeCount - 1) * spacing;
 
-            // ПАСС 2: Раздаем место только активным Expanded детям
-            if (expandedCount > 0)
+            // ПАСС 2: Раздаем место Expanded детям
+            float? parentMainMax = (main == 0 ? c.maxX : c.maxY);
+            if (expandedCount > 0 && parentMainMax.HasValue)
             {
-                float availableMainSpace = 0;
-                if (!float.IsPositiveInfinity(c.max[main]))
-                {
-                    availableMainSpace = c.max[main] - totalPadding[main] - totalSpacing - fixedMainConsumed;
-                    availableMainSpace = math.max(0, availableMainSpace);
-                }
+                float availableMain = math.max(0, parentMainMax.Value - totalPadding[main] - totalSpacing - fixedMainConsumed);
 
                 for (int i = 0; i < e.children.Count; i++)
                 {
@@ -71,34 +75,40 @@ namespace REDIZIT.RUI
                     if (child.composer is Expanded_Composer exp)
                     {
                         float flexFactor = (exp.flex > 0 ? exp.flex : 1f) / (totalFlex > 0 ? totalFlex : 1f);
-                        float allocatedMain = availableMainSpace * flexFactor;
+                        float allocatedMain = availableMain * flexFactor;
 
-                        float2 childMax = innerMax;
-                        childMax[main] = allocatedMain;
-                        if (float.IsPositiveInfinity(childMax[cross]) && crossMax > 0)
-                            childMax[cross] = crossMax;
+                        SizeConstraints expC = (main == 0)
+                            ? new SizeConstraints(allocatedMain, null, allocatedMain, innerCrossMax ?? crossMax)
+                            : new SizeConstraints(null, allocatedMain, innerCrossMax ?? crossMax, allocatedMain);
 
-                        float2 childMin = 0;
-                        childMin[main] = allocatedMain;
-
-                        float2 childSize = child.SolveLayout(new SizeConstraints(childMin, childMax));
+                        float2 childSize = child.SolveLayout(expC);
                         crossMax = math.max(crossMax, childSize[cross]);
                     }
                 }
             }
 
+            // Итоговый размер
+            float? selfMain = (main == 0 ? e.transform.width : e.transform.height);
             float2 totalSize = 0;
-            if (expandedCount > 0 && !float.IsPositiveInfinity(c.max[main]))
-                totalSize[main] = c.max[main];
-            else
-                totalSize[main] = fixedMainConsumed + totalPadding[main] + totalSpacing;
 
+            if (expandedCount > 0 && parentMainMax.HasValue)
+            {
+                totalSize[main] = parentMainMax.Value;
+            }
+            else if (selfMain.HasValue)
+            {
+                totalSize[main] = selfMain.Value;
+            }
+            else
+            {
+                totalSize[main] = fixedMainConsumed + totalPadding[main] + totalSpacing;
+            }
             totalSize[cross] = crossMax + totalPadding[cross];
 
             float2 finalSize = c.Constrain(totalSize);
-            e.transform.size = finalSize;
+            e.transform.calculatedSize = finalSize;
 
-            // ПАСС 3: Расстановка только активных детей
+            // ПАСС 3: Расстановка детей
             float cursor = 0;
             for (int i = 0; i < e.children.Count; i++)
             {
@@ -108,20 +118,20 @@ namespace REDIZIT.RUI
                 float2 childPos = 0;
                 if (axis == LayoutDirection.Vertical)
                 {
-                    childPos.y = finalSize.y - padding.w - cursor - child.transform.size.y;
+                    childPos.y = finalSize.y - padding.w - cursor - child.transform.calculatedSize.y;
                     childPos.x = padding.x;
-                    cursor += child.transform.size.y + spacing;
+                    cursor += child.transform.calculatedSize.y + spacing;
                 }
                 else
                 {
                     childPos.x = padding.x + cursor;
                     childPos.y = padding.y;
-                    cursor += child.transform.size.x + spacing;
+                    cursor += child.transform.calculatedSize.x + spacing;
                 }
                 child.transform.localPos = childPos;
             }
 
-            return finalSize;
+            return e.transform.calculatedSize;
         }
     }
 }

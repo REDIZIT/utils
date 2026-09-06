@@ -8,22 +8,20 @@ namespace REDIZIT.RUI
 
 		public float2 Solve(SizeConstraints c)
 		{
-			// ВАЖНО: Даем детям Loose ограничения, чтобы они НЕ растягивались принудительно,
-			// если они сами этого не просят.
-			SizeConstraints childConstraints = SizeConstraints.Loose(c.max);
+			CanvasTransform t = e.transform;
 
 			for (int i = 0; i < e.children.Count; i++)
 			{
-				e.children[i].SolveLayout(childConstraints);
+				if (!e.children[i].isEnabled) continue;
+				e.children[i].SolveLayout(SizeConstraints.Loose(c.maxX, c.maxY));
 			}
 
-			// Сами занимаем максимум
-			float2 finalSize = c.max;
-			if (float.IsInfinity(finalSize.x)) finalSize.x = e.transform.size.x;
-			if (float.IsInfinity(finalSize.y)) finalSize.y = e.transform.size.y;
+			float2 finalSize = 0;
+			finalSize.x = c.maxX ?? (t.width ?? 0f);
+			finalSize.y = c.maxY ?? (t.height ?? 0f);
 
-			e.transform.size = finalSize;
-			return finalSize;
+			t.calculatedSize = finalSize;
+			return t.calculatedSize;
 		}
 	}
 }
