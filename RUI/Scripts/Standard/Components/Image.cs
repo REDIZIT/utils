@@ -71,18 +71,18 @@ namespace REDIZIT.RUI
 
         private void UpdateSpriteMaterial()
         {
-            if (internalSprite == null || canvasService == null)
-            {
-                spriteMaterialInstance = null;
-                return;
-            }
+	        if (internalSprite == null || canvasService == null)
+	        {
+		        spriteMaterialInstance = null;
+		        return;
+	        }
 
-            Material baseMat = material != null ? material : canvasService.defaultCombinedMaterial;
-            if (baseMat != null)
-            {
-                spriteMaterialInstance = new Material(baseMat);
-                spriteMaterialInstance.mainTexture = internalSprite.texture;
-            }
+	        Material baseMat = material != null ? material : canvasService.defaultCombinedMaterial;
+	        if (baseMat != null)
+	        {
+		        // БЕРЕМ ЕДИНЫЙ ОБЩИЙ МАТЕРИАЛ ИЗ КЭША:
+		        spriteMaterialInstance = canvasService.GetOrCreateMaterial(baseMat, internalSprite.texture);
+	        }
         }
 
         public override float2 GetPreferredSize()

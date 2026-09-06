@@ -19,6 +19,9 @@ namespace REDIZIT.RUI
         
         private readonly Dictionary<Type, Func<CanvasComponent>> fastFactories = new();
         
+        // Кэш материалов: ключ = (BaseMaterial.GetInstanceID(), Texture.GetInstanceID())
+        private readonly Dictionary<(EntityId, EntityId), Material> materialCache = new();
+        
         public CanvasService()
         {
             RegisterAssembly(typeof(CanvasComponent).Assembly);
@@ -115,6 +118,24 @@ namespace REDIZIT.RUI
 	        }
 
 	        return factory();
+        }
+        
+        public Material GetOrCreateMaterial(Material baseMaterial, Texture texture)
+        {
+	        if (baseMaterial == null) return null;
+	        if (texture == null) return baseMaterial;
+
+	        var key = (baseMaterial.GetEntityId(), texture.GetEntityId());
+	        if (materialCache.TryGetValue(key, out var cachedMat) && cachedMat != null)
+		        return cachedMat;
+
+	        var newMat = new Material(baseMaterial)
+	        {
+		        name = $"{baseMaterial.name}_{texture.name}",
+		        mainTexture = texture
+	        };
+	        materialCache[key] = newMat;
+	        return newMat;
         }
     }
 }

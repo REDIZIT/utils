@@ -90,16 +90,15 @@ namespace REDIZIT.RUI
         {
 	        if (canvasService == null) return;
 
-	        // Резолвим шрифт по имени через AssetDatabase или берем дефолтный:
 	        subpixelFont = canvasService.GetOrCreateSubpixelFont(internalFontName, internalFontSize, assetDatabase);
 
 	        if (subpixelFont != null && canvasService.defaultSubpixelMaterial != null)
 	        {
-		        if (fontMaterial == null)
-		        {
-			        fontMaterial = new Material(canvasService.defaultSubpixelMaterial);
-		        }
-		        fontMaterial.mainTexture = subpixelFont.AtlasTexture;
+		        // БЕРЕМ ЕДИНЫЙ ОБЩИЙ МАТЕРИАЛ ИЗ КЭША СЕРВИСА:
+		        fontMaterial = canvasService.GetOrCreateMaterial(
+			        canvasService.defaultSubpixelMaterial, 
+			        subpixelFont.AtlasTexture
+		        );
 	        }
         }
         

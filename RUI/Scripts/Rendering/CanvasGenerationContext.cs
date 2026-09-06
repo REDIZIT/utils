@@ -7,6 +7,14 @@ namespace REDIZIT.RUI
 {
     public class CanvasGenerationContext
     {
+        public enum Layer
+        {
+            Background = 0,
+            Content = 1,
+            Text = 2,
+            Overlay = 3
+        }
+
         public class DrawBatch
         {
             public Material material;
@@ -15,7 +23,7 @@ namespace REDIZIT.RUI
             public readonly List<Vector2> uvs = new List<Vector2>();
             public readonly List<Vector2> uv1RectSizes = new List<Vector2>();
             public readonly List<Vector4> uv2Data = new List<Vector4>();
-            public readonly List<Vector4> uv3ClipRects = new List<Vector4>(); // Канал маски!
+            public readonly List<Vector4> uv3ClipRects = new List<Vector4>();
             public readonly List<Color> colors = new List<Color>();
             public Mesh mesh;
 
@@ -39,7 +47,7 @@ namespace REDIZIT.RUI
                 mesh.SetUVs(0, uvs);
                 mesh.SetUVs(1, uv1RectSizes);
                 mesh.SetUVs(2, uv2Data);
-                mesh.SetUVs(3, uv3ClipRects); // Передаем clipRect в TEXCOORD3
+                mesh.SetUVs(3, uv3ClipRects);
                 mesh.SetColors(colors);
             }
 
@@ -53,26 +61,50 @@ namespace REDIZIT.RUI
             }
         }
 
-        public readonly List<DrawBatch> batches = new List<DrawBatch>();
-        public DrawBatch currentBatch;
+        // 4 корзины для слоев
+        private readonly Dictionary<Material, DrawBatch>[] layerBatches = new Dictionary<Material, DrawBatch>[4]
+        {
+            new Dictionary<Material, DrawBatch>(),
+            new Dictionary<Material, DrawBatch>(),
+            new Dictionary<Material, DrawBatch>(),
+            new Dictionary<Material, DrawBatch>()
+        };
 
-        // По умолчанию маска бесконечная (отсечение отключено)
+        public readonly List<DrawBatch> finalizedBatches = new List<DrawBatch>();
+        private DrawBatch currentBatch;
+        private Layer currentLayer = Layer.Background;
+
         public static readonly Vector4 InfiniteClipRect = new Vector4(-100000f, -100000f, 100000f, 100000f);
         public readonly Stack<Vector4> clipStack = new Stack<Vector4>();
 
         public Vector4 CurrentClipRect => clipStack.Count > 0 ? clipStack.Peek() : InfiniteClipRect;
+
+        public void SetLayer(Layer layer)
+        {
+            currentLayer = layer;
+        }
+
+        public void SetMaterial(Material mat)
+        {
+            if (mat == null) return;
+
+            var dict = layerBatches[(int)currentLayer];
+            if (!dict.TryGetValue(mat, out currentBatch))
+            {
+                currentBatch = new DrawBatch { material = mat };
+                dict[mat] = currentBatch;
+            }
+        }
 
         public void PushClipRect(Vector4 newClip)
         {
             if (clipStack.Count > 0)
             {
                 Vector4 parentClip = clipStack.Peek();
-                // Пересечение двух AABB прямоугольников:
                 float minX = Mathf.Max(parentClip.x, newClip.x);
                 float minY = Mathf.Max(parentClip.y, newClip.y);
                 float maxX = Mathf.Min(parentClip.z, newClip.z);
                 float maxY = Mathf.Min(parentClip.w, newClip.w);
-
                 clipStack.Push(new Vector4(minX, minY, maxX, maxY));
             }
             else
@@ -83,102 +115,43 @@ namespace REDIZIT.RUI
 
         public void PopClipRect()
         {
-            if (clipStack.Count > 0)
-            {
-                clipStack.Pop();
-            }
+            if (clipStack.Count > 0) clipStack.Pop();
         }
 
         public void Clear()
         {
-            for (int i = 0; i < batches.Count; i++)
-                batches[i].Clear();
+            for (int l = 0; l < 4; l++)
+            {
+                foreach (var b in layerBatches[l].Values)
+                    b.Clear();
+            }
+            finalizedBatches.Clear();
             currentBatch = null;
             clipStack.Clear();
         }
 
-        public void SetMaterial(Material mat)
+        public void FinalizeBatches()
         {
-            if (currentBatch != null && currentBatch.material == mat)
-                return;
+            finalizedBatches.Clear();
 
-            currentBatch = null;
-            for (int i = 0; i < batches.Count; i++)
+            // Собираем батчи строго в порядке слоев: Background -> Content -> Text -> Overlay
+            for (int l = 0; l < 4; l++)
             {
-                if (batches[i].verts.Count == 0)
+                foreach (var b in layerBatches[l].Values)
                 {
-                    currentBatch = batches[i];
-                    currentBatch.material = mat;
-                    break;
+                    if (b.verts.Count > 0)
+                    {
+                        b.ApplyToMesh();
+                        finalizedBatches.Add(b);
+                    }
                 }
             }
-
-            if (currentBatch == null)
-            {
-                currentBatch = new DrawBatch { material = mat };
-                batches.Add(currentBatch);
-            }
-        }
-        
-        public void AppendQuad(float2 size, Matrix4x4 matrix, Color color, float4 cornerRadii, float4 uvRect = default)
-        {
-	        AppendQuad(float2.zero, size, matrix, color, cornerRadii, uvRect);
         }
 
+        // Отрисовка квада
         public void AppendQuad(float2 pos, float2 size, Matrix4x4 matrix, Color color, float4 cornerRadii, float4 uvRect = default)
-		{
-		    if (currentBatch == null) throw new InvalidOperationException("Material not set!");
-
-		    int baseIndex = currentBatch.verts.Count;
-
-		    // Смещение углов квада с учетом локальной позиции pos
-		    Vector3 p0 = matrix.MultiplyPoint3x4(new Vector3(pos.x, pos.y, 0));
-		    Vector3 p1 = matrix.MultiplyPoint3x4(new Vector3(pos.x + size.x, pos.y, 0));
-		    Vector3 p2 = matrix.MultiplyPoint3x4(new Vector3(pos.x, pos.y + size.y, 0));
-		    Vector3 p3 = matrix.MultiplyPoint3x4(new Vector3(pos.x + size.x, pos.y + size.y, 0));
-
-		    currentBatch.verts.Add(p0);
-		    currentBatch.verts.Add(p1);
-		    currentBatch.verts.Add(p2);
-		    currentBatch.verts.Add(p3);
-
-		    if (math.dot(uvRect, uvRect) <= 0.0001f)
-		    {
-		        currentBatch.uvs.Add(new Vector2(0, 0));
-		        currentBatch.uvs.Add(new Vector2(1, 0));
-		        currentBatch.uvs.Add(new Vector2(0, 1));
-		        currentBatch.uvs.Add(new Vector2(1, 1));
-		    }
-		    else
-		    {
-		        currentBatch.uvs.Add(new Vector2(uvRect.x, uvRect.y));
-		        currentBatch.uvs.Add(new Vector2(uvRect.z, uvRect.y));
-		        currentBatch.uvs.Add(new Vector2(uvRect.x, uvRect.w));
-		        currentBatch.uvs.Add(new Vector2(uvRect.z, uvRect.w));
-		    }
-
-		    Vector4 currentClip = CurrentClipRect;
-		    for (int i = 0; i < 4; i++)
-		    {
-		        currentBatch.uv1RectSizes.Add(new Vector2(size.x, size.y));
-		        currentBatch.uv2Data.Add(cornerRadii);
-		        currentBatch.uv3ClipRects.Add(currentClip);
-		        currentBatch.colors.Add(color);
-		    }
-
-		    currentBatch.tris.Add(baseIndex + 0);
-		    currentBatch.tris.Add(baseIndex + 2);
-		    currentBatch.tris.Add(baseIndex + 1);
-
-		    currentBatch.tris.Add(baseIndex + 2);
-		    currentBatch.tris.Add(baseIndex + 3);
-		    currentBatch.tris.Add(baseIndex + 1);
-		}
-
-        public void AppendTextGlyph(float2 pos, float2 size, float4 uvRect, Matrix4x4 matrix, Color color)
         {
-            if (currentBatch == null)
-                throw new InvalidOperationException("Материал не был установлен перед вызовом AppendTextGlyph!");
+            if (currentBatch == null) return;
 
             int baseIndex = currentBatch.verts.Count;
 
@@ -192,20 +165,27 @@ namespace REDIZIT.RUI
             currentBatch.verts.Add(p2);
             currentBatch.verts.Add(p3);
 
-            currentBatch.uvs.Add(new Vector2(uvRect.x, uvRect.y));
-            currentBatch.uvs.Add(new Vector2(uvRect.z, uvRect.y));
-            currentBatch.uvs.Add(new Vector2(uvRect.x, uvRect.w));
-            currentBatch.uvs.Add(new Vector2(uvRect.z, uvRect.w));
+            if (math.dot(uvRect, uvRect) <= 0.0001f)
+            {
+                currentBatch.uvs.Add(new Vector2(0, 0));
+                currentBatch.uvs.Add(new Vector2(1, 0));
+                currentBatch.uvs.Add(new Vector2(0, 1));
+                currentBatch.uvs.Add(new Vector2(1, 1));
+            }
+            else
+            {
+                currentBatch.uvs.Add(new Vector2(uvRect.x, uvRect.y));
+                currentBatch.uvs.Add(new Vector2(uvRect.z, uvRect.y));
+                currentBatch.uvs.Add(new Vector2(uvRect.x, uvRect.w));
+                currentBatch.uvs.Add(new Vector2(uvRect.z, uvRect.w));
+            }
 
-            Vector2 rectSize = new Vector2(size.x, size.y);
-            Vector4 textFlag = new Vector4(-1f, 0, 0, 0);
             Vector4 currentClip = CurrentClipRect;
-
             for (int i = 0; i < 4; i++)
             {
-                currentBatch.uv1RectSizes.Add(rectSize);
-                currentBatch.uv2Data.Add(textFlag);
-                currentBatch.uv3ClipRects.Add(currentClip); // Записываем маску для текста!
+                currentBatch.uv1RectSizes.Add(new Vector2(size.x, size.y));
+                currentBatch.uv2Data.Add(cornerRadii);
+                currentBatch.uv3ClipRects.Add(currentClip);
                 currentBatch.colors.Add(color);
             }
 
@@ -218,20 +198,20 @@ namespace REDIZIT.RUI
             currentBatch.tris.Add(baseIndex + 1);
         }
 
-        public void FinalizeBatches()
+        public void AppendQuad(float2 size, Matrix4x4 matrix, Color color, float4 cornerRadii, float4 uvRect = default)
         {
-            for (int i = 0; i < batches.Count; i++)
-            {
-                if (batches[i].verts.Count > 0)
-                    batches[i].ApplyToMesh();
-            }
+            AppendQuad(float2.zero, size, matrix, color, cornerRadii, uvRect);
         }
 
         public void Dispose()
         {
-            for (int i = 0; i < batches.Count; i++)
-                batches[i].Dispose();
-            batches.Clear();
+            for (int l = 0; l < 4; l++)
+            {
+                foreach (var b in layerBatches[l].Values)
+                    b.Dispose();
+                layerBatches[l].Clear();
+            }
+            finalizedBatches.Clear();
         }
     }
 }

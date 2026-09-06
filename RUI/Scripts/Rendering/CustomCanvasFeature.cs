@@ -59,7 +59,7 @@ namespace REDIZIT.RUI
 	                    var canvas = CustomCanvas.Instance;
 	                    if (canvas == null) return;
 
-	                    var batches = canvas.context.batches;
+	                    var batches = canvas.context.finalizedBatches;
 	                    for (int b = 0; b < batches.Count; b++)
 	                    {
 		                    var batch = batches[b];
