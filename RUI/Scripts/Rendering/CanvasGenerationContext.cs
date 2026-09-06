@@ -115,22 +115,13 @@ namespace REDIZIT.RUI
                 }
             }
         }
-
-        // 4 корзины для слоев
-        private readonly Dictionary<Material, DrawBatch>[] layerBatches = new Dictionary<Material, DrawBatch>[4]
-        {
-            new Dictionary<Material, DrawBatch>(),
-            new Dictionary<Material, DrawBatch>(),
-            new Dictionary<Material, DrawBatch>(),
-            new Dictionary<Material, DrawBatch>()
-        };
-
-        public readonly List<DrawBatch> finalizedBatches = new List<DrawBatch>();
+        
+        public readonly List<DrawBatch> finalizedBatches = new();
         private DrawBatch currentBatch;
         private Layer currentLayer = Layer.Background;
 
-        public static readonly Vector4 InfiniteClipRect = new Vector4(-100000f, -100000f, 100000f, 100000f);
-        public readonly Stack<Vector4> clipStack = new Stack<Vector4>();
+        public static readonly Vector4 InfiniteClipRect = new(-100000f, -100000f, 100000f, 100000f);
+        public readonly Stack<Vector4> clipStack = new();
 
         public Vector4 CurrentClipRect => clipStack.Count > 0 ? clipStack.Peek() : InfiniteClipRect;
 
@@ -213,12 +204,7 @@ namespace REDIZIT.RUI
 
         public void Dispose()
         {
-            for (int l = 0; l < 4; l++)
-            {
-                foreach (var b in layerBatches[l].Values)
-                    b.Dispose();
-                layerBatches[l].Clear();
-            }
+	        foreach (DrawBatch b in finalizedBatches) b.Dispose();
             finalizedBatches.Clear();
         }
     }

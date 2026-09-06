@@ -155,11 +155,15 @@ namespace REDIZIT.RUI
 	        bool hasMask = mask != null && mask.enabled;
 	        if (hasMask) ctx.PushClipRect(mask.GetWorldClipRect());
 
-	        for (int i = 0; i < components.Count; i++)
-		        components[i].GenerateMesh(ctx);
-
-	        for (int i = 0; i < children.Count; i++)
-		        children[i].RenderTree(ctx);
+	        foreach (CanvasComponent comp in components)
+	        {
+		        if (comp.isEnabled) comp.GenerateMesh(ctx);
+	        }
+	        
+	        foreach (CanvasElement child in children)
+	        {
+		        if (child.isEnabled) child.RenderTree(ctx);
+	        }
 
 	        if (hasMask) ctx.PopClipRect();
 
@@ -176,9 +180,9 @@ namespace REDIZIT.RUI
 
 	        // 2. Хук завершения верстки: компоненты (ScrollView, ползунки, тултипы)
 	        // получают доступ к 100% свежим размерам в этом же кадре!
-	        for (int i = 0; i < components.Count; i++)
+	        foreach (CanvasComponent comp in components)
 	        {
-		        components[i].OnLayoutComplete();
+		        if (comp.isEnabled) comp.OnLayoutComplete();
 	        }
 
 	        return result;
