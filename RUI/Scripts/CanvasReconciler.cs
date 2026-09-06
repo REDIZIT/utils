@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using Unity.Mathematics;
 using UnityEngine;
@@ -63,18 +64,21 @@ namespace REDIZIT.RUI
                 if (!service.module.componentTypes.TryGetValue(node.typeName, out Type type)) continue;
         
                 CanvasComponent comp = null;
-                for (int c = 0; c < element.components.Count; c++)
+                foreach (CanvasComponent c in element.Components)
                 {
-                    if (element.components[c].GetType() == type) { comp = element.components[c]; break; }
+	                if (c.GetType() == type)
+	                {
+		                comp = c; 
+		                break;
+	                }
                 }
         
                 bool isNew = comp == null;
                 if (isNew)
                 {
-                    // БЫСТРОЕ СОЗДАНИЕ ВМЕСТО DiContainer.Instantiate!
                     comp = service.InstantiateComponent(type, container);
                     comp.Element = element;
-                    element.components.Add(comp);
+                    element.AddComponent(comp);
                     
                     newComponents ??= new List<CanvasComponent>();
                     newComponents.Add(comp);
@@ -105,27 +109,42 @@ namespace REDIZIT.RUI
 
                 if (!string.IsNullOrEmpty(node.key))
                 {
-                    for (int c = 0; c < parent.children.Count; c++)
-                    {
-                        if (parent.children[c].key == node.key) { child = parent.children[c]; break; }
-                    }
+	                foreach (CanvasElement parentChild in parent.Children)
+	                {
+		                if (parentChild.key == node.key)
+		                {
+			                child = parentChild;
+			                break;
+		                }
+	                }
                 }
-                else if (i < parent.children.Count && string.IsNullOrEmpty(parent.children[i].key))
+                else if (i < parent.Children.Count && string.IsNullOrEmpty(parent.Children.ElementAt(i).key))
                 {
-                    child = parent.children[i];
+                    child = parent.Children.ElementAt(i);
                 }
 
                 if (child == null)
                 {
-	                child = new CanvasElement { key = node.key, parent = parent, service = service, reconciler = this };
-                    parent.children.Add(child);
+	                child = new()
+	                {
+		                key = node.key,
+		                parent = parent,
+		                service = service,
+		                reconciler = this
+	                };
+	                parent.AddChild(child);
                 }
 
                 Reconcile(child, node);
             }
 
-            if (parent.children.Count > nodes.Count)
-                parent.children.RemoveRange(nodes.Count, parent.children.Count - nodes.Count);
+            if (parent.Children.Count > nodes.Count)
+            {
+	            for (int i = parent.Children.Count - 1; i >= nodes.Count; i--)
+	            {
+		            parent.RemoveChild(i);
+	            }
+            }
         }
 
         private void ApplyComponentProperty(CanvasComponent comp, Node_Property prop)
@@ -163,11 +182,8 @@ namespace REDIZIT.RUI
 
         public void PostProcessBindings(CanvasElement root)
         {
-            for (int i = 0; i < root.components.Count; i++)
-                WireFields(root.components[i], root);
-
-            for (int i = 0; i < root.children.Count; i++)
-                PostProcessBindings(root.children[i]);
+	        foreach (CanvasComponent component in root.Components) WireFields(component, root);
+	        foreach (CanvasElement child in root.Children) PostProcessBindings(child);
         }
 
         private void WireFields(CanvasComponent target, CanvasElement root)
@@ -187,7 +203,7 @@ namespace REDIZIT.RUI
                     }
                     else
                     {
-                        value = FindComponentById(root, fInfo.fieldType, fInfo.field.Name) ?? 
+                        value = FindComponentByID(root, fInfo.fieldType, fInfo.field.Name) ?? 
                                 FindComponentByType(root, fInfo.fieldType);
                     }
                 }
@@ -207,45 +223,49 @@ namespace REDIZIT.RUI
             }
         }
 
-        // Вспомогательные методы поиска по дереву без LINQ
-        private CanvasComponent FindComponentById(CanvasElement e, Type t, string id)
+        
+        private CanvasComponent FindComponentByID(CanvasElement e, Type t, string id)
         {
-            for (int i = 0; i < e.components.Count; i++)
-            {
-                var c = e.components[i];
-                if (t.IsAssignableFrom(c.GetType()) && string.Equals(c.id, id, StringComparison.OrdinalIgnoreCase))
-                    return c;
-            }
-            for (int i = 0; i < e.children.Count; i++)
-            {
-                var f = FindComponentById(e.children[i], t, id);
-                if (f != null) return f;
-            }
+	        foreach (CanvasComponent component in e.Components)
+	        {
+		        if (t.IsAssignableFrom(component.GetType()) && string.Equals(component.id, id, StringComparison.OrdinalIgnoreCase))
+		        {
+			        return component;
+		        }
+	        }
+	        
+	        foreach (CanvasElement child in e.Children)
+	        {
+		        var f = FindComponentByID(child, t, id);
+		        if (f != null) return f;
+	        }
+	        
             return null;
         }
 
         private CanvasComponent FindComponentByType(CanvasElement e, Type t)
         {
-            for (int i = 0; i < e.components.Count; i++)
-            {
-                var c = e.components[i];
-                if (t.IsAssignableFrom(c.GetType())) return c;
-            }
-            for (int i = 0; i < e.children.Count; i++)
-            {
-                var f = FindComponentByType(e.children[i], t);
-                if (f != null) return f;
-            }
+	        foreach (CanvasComponent component in e.Components)
+	        {
+		        if (t.IsAssignableFrom(component.GetType())) return component;
+	        }
+	        
+	        foreach (CanvasElement child in e.Children)
+	        {
+		        var f = FindComponentByType(child, t);
+		        if (f != null) return f;
+	        }
+	        
             return null;
         }
 
         private CanvasElement FindElementByKey(CanvasElement e, string key)
         {
             if (string.Equals(e.key, key, StringComparison.OrdinalIgnoreCase)) return e;
-            for (int i = 0; i < e.children.Count; i++)
+            foreach (CanvasElement child in e.Children)
             {
-                var f = FindElementByKey(e.children[i], key);
-                if (f != null) return f;
+	            CanvasElement f = FindElementByKey(child, key);
+	            if (f != null) return f;
             }
             return null;
         }

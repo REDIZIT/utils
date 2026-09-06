@@ -9,11 +9,11 @@ namespace REDIZIT.RUI
 		public float2 Solve(SizeConstraints c)
 		{
 			CanvasTransform t = e.transform;
-
-			for (int i = 0; i < e.children.Count; i++)
+			
+			foreach (CanvasElement child in e.Children)
 			{
-				if (!e.children[i].isEnabled) continue;
-				e.children[i].SolveLayout(SizeConstraints.Loose(c.maxX, c.maxY));
+				if (!child.isEnabled) continue;
+				child.SolveLayout(SizeConstraints.Loose(c.maxX, c.maxY));
 			}
 
 			float2 finalSize = 0;

@@ -104,7 +104,7 @@ namespace REDIZIT.RUI
 
 			menuElement.transform.localPos = new float2(x, y);
 
-			rootElement.children.Add(menuElement);
+			rootElement.AddChild(menuElement);
 			activeMenus.Add(new ActiveMenu { level = level, element = menuElement });
 
 			rootElement.MarkDirty();
@@ -116,7 +116,7 @@ namespace REDIZIT.RUI
 			{
 				if (activeMenus[i].level > level)
 				{
-					rootElement.children.Remove(activeMenus[i].element);
+					rootElement.RemoveChild(activeMenus[i].element);
 					activeMenus.RemoveAt(i);
 					rootElement.MarkDirty();
 				}
@@ -129,7 +129,7 @@ namespace REDIZIT.RUI
 
 			for (int i = 0; i < activeMenus.Count; i++)
 			{
-				rootElement.children.Remove(activeMenus[i].element);
+				rootElement.RemoveChild(activeMenus[i].element);
 			}
 			activeMenus.Clear();
 			rootElement.MarkDirty();

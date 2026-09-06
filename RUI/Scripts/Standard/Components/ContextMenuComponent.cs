@@ -16,9 +16,9 @@ namespace REDIZIT.RUI
 			container.Refresh<ContextMenuItemLot, ContextMenuItem>(items);
 
 			// Проставляем сервис и уровень во все созданные строки
-			for (int i = 0; i < container.Element.children.Count; i++)
+			foreach (CanvasElement child in container.Element.Children)
 			{
-				var lot = container.Element.children[i].GetComponent<ContextMenuItemLot>();
+				var lot = child.GetComponent<ContextMenuItemLot>();
 				if (lot != null)
 				{
 					lot.menuService = service;

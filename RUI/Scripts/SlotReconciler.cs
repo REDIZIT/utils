@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using UnityEngine;
 
 namespace REDIZIT.RUI
@@ -35,27 +36,26 @@ namespace REDIZIT.RUI
 				return;
 			}
 
-			cachedBuilder ??= new SlotBuilder();
+			cachedBuilder ??= new();
 			cachedBuilder.slots.Clear();
 
 			buildAction(cachedBuilder);
 
 			var desired = cachedBuilder.slots;
-			var children = container.children;
+			var children = container.Children;
 			int targetCount = desired.Count;
 			bool changed = false;
 
 			for (int i = 0; i < targetCount; i++)
 			{
-				var slot = desired[i];
+				SlotDescriptor slot = desired[i];
 				CanvasElement child = null;
 
 				// 1. Проверяем элемент на текущей позиции
 				if (i < children.Count)
 				{
-					var existing = children[i];
-					if (string.Equals(existing.key, slot.key, StringComparison.OrdinalIgnoreCase) &&
-					    existing.GetComponent(slot.lotType) != null)
+					CanvasElement existing = children.ElementAt(i);
+					if (string.Equals(existing.key, slot.key, StringComparison.OrdinalIgnoreCase) && existing.GetComponent(slot.lotType) != null)
 					{
 						child = existing;
 					}
@@ -67,8 +67,8 @@ namespace REDIZIT.RUI
 					int foundIdx = -1;
 					for (int j = i + 1; j < children.Count; j++)
 					{
-						if (string.Equals(children[j].key, slot.key, StringComparison.OrdinalIgnoreCase) &&
-						    children[j].GetComponent(slot.lotType) != null)
+						CanvasElement c = children.ElementAt(j);
+						if (string.Equals(c.key, slot.key, StringComparison.OrdinalIgnoreCase) && c.GetComponent(slot.lotType) != null)
 						{
 							foundIdx = j;
 							break;
@@ -77,9 +77,9 @@ namespace REDIZIT.RUI
 
 					if (foundIdx != -1)
 					{
-						child = children[foundIdx];
-						children.RemoveAt(foundIdx);
-						children.Insert(i, child);
+						child = children.ElementAt(foundIdx);
+						container.RemoveChild(foundIdx);
+						container.InsertChild(i, child);
 						changed = true;
 					}
 					else
@@ -102,7 +102,7 @@ namespace REDIZIT.RUI
 						reconciler.Reconcile(child, template.templateAst);
 						reconciler.PostProcessBindings(child);
 
-						children.Insert(i, child);
+						container.InsertChild(i, child);
 						changed = true;
 					}
 				}
@@ -117,7 +117,7 @@ namespace REDIZIT.RUI
 			// 5. Удаляем лишние элементы с конца
 			if (children.Count > targetCount)
 			{
-				children.RemoveRange(targetCount, children.Count - targetCount);
+				container.RemoveChildren(targetCount, children.Count - targetCount);
 				changed = true;
 			}
 

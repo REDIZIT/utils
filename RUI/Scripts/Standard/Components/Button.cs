@@ -45,11 +45,15 @@ namespace REDIZIT.RUI
         public override void OnAttached()
         {
             base.OnAttached();
+            
             if (targetGraphic == null && Element != null)
-                targetGraphic = Element.GetComponent<Image>();
+            {
+	            targetGraphic = Element.GetComponent<Image>();
+            }
 
             recognizer.onDown = () =>
             {
+	            Debug.Log("On down");
                 isPressed = true;
                 ApplyVisualState();
             };
@@ -62,6 +66,7 @@ namespace REDIZIT.RUI
 
             recognizer.onTap = () =>
             {
+	            Debug.Log("On tap");
                 isPressed = false;
                 ApplyVisualState();
                 onClick?.Invoke();
@@ -105,7 +110,7 @@ namespace REDIZIT.RUI
             ApplyVisualState();
         }
 
-        public void ApplyVisualState()
+        private void ApplyVisualState()
         {
             if (targetGraphic == null) return;
 

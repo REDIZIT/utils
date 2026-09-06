@@ -36,9 +36,8 @@ namespace REDIZIT.RUI
             }
 
             // ПАСС 1: Замеряем не-Expanded детей
-            for (int i = 0; i < e.children.Count; i++)
+            foreach (CanvasElement child in e.Children)
             {
-                CanvasElement child = e.children[i];
                 if (!child.isEnabled) continue;
                 activeCount++;
 
@@ -67,9 +66,8 @@ namespace REDIZIT.RUI
             {
                 float availableMain = math.max(0, parentMainMax.Value - totalPadding[main] - totalSpacing - fixedMainConsumed);
 
-                for (int i = 0; i < e.children.Count; i++)
+                foreach (CanvasElement child in e.Children)
                 {
-                    CanvasElement child = e.children[i];
                     if (!child.isEnabled) continue;
 
                     if (child.composer is Expanded_Composer exp)
@@ -110,9 +108,8 @@ namespace REDIZIT.RUI
 
             // ПАСС 3: Расстановка детей
             float cursor = 0;
-            for (int i = 0; i < e.children.Count; i++)
+            foreach (CanvasElement child in e.Children)
             {
-                CanvasElement child = e.children[i];
                 if (!child.isEnabled) continue;
 
                 float2 childPos = 0;

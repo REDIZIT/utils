@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -14,7 +15,6 @@ namespace REDIZIT.RUI
 
         private bool internalIsEnabled = true;
 
-        // Аналог GameObject.activeSelf
         public bool isEnabled
         {
             get => internalIsEnabled;
@@ -25,13 +25,14 @@ namespace REDIZIT.RUI
                 MarkDirty();
             }
         }
+        
+        public IReadOnlyCollection<CanvasElement> Children => children;
+        public IReadOnlyCollection<CanvasComponent> Components => components;
+        
+        public readonly CanvasTransform transform = new();
 
-        // Проверка активности с учетом всей цепочки родителей
-        public bool IsActiveInHierarchy => isEnabled && (parent == null || parent.IsActiveInHierarchy);
-
-        public readonly List<CanvasElement> children = new List<CanvasElement>();
-        public readonly CanvasTransform transform = new CanvasTransform();
-        public readonly List<CanvasComponent> components = new List<CanvasComponent>();
+        private readonly List<CanvasElement> children = new();
+        private readonly List<CanvasComponent> components = new();
 
         public Action onTreeDirty;
         
@@ -56,12 +57,50 @@ namespace REDIZIT.RUI
             MarkDirty();
         }
 
+        public void RemoveChild(int childIndex)
+        {
+	        CanvasElement child = children[childIndex];
+	        RemoveChild(child);
+        }
+
+        public void RemoveChildren(int startIndex, int count)
+        {
+	        children.RemoveRange(startIndex, count);
+	        // for (int i = startIndex - count - 1; i >= startIndex; i--)
+	        // {
+		       //  CanvasElement child = children[i];
+		       //  child.parent = null;
+		       //  children.Remove(child);
+	        // }
+	        
+	        MarkDirty();
+        }
+        
+        public void RemoveChild(CanvasElement child)
+        {
+	        child.parent = null;
+	        children.Remove(child);
+	        MarkDirty();
+        }
+
+        public void InsertChild(int index, CanvasElement child)
+        {
+	        child.parent = this;
+	        children.Insert(index, child);
+	        MarkDirty();
+        }
+
         public T AddComponent<T>() where T : CanvasComponent, new()
         {
             var component = new T { Element = this };
-            components.Add(component);
-            MarkDirty();
+            AddComponent(component);
             return component;
+        }
+        
+        public void AddComponent<T>(T component) where T : CanvasComponent
+        {
+	        components.Add(component);
+	        MarkDirty();
         }
 
         public T GetComponent<T>() where T : class

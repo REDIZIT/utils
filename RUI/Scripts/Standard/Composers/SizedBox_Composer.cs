@@ -23,11 +23,11 @@ namespace REDIZIT.RUI
 			SizeConstraints childConstraints = SizeConstraints.Loose(childMaxX, childMaxY);
             
 			float2 childrenMax = float2.zero;
-			for (int i = 0; i < e.children.Count; i++)
+			foreach (CanvasElement child in e.Children)
 			{
-				if (!e.children[i].isEnabled) continue;
-				float2 childSize = e.children[i].SolveLayout(childConstraints);
-				childrenMax = math.max(childrenMax, e.children[i].transform.localPos + childSize);
+				if (!child.isEnabled) continue;
+				float2 childSize = child.SolveLayout(childConstraints);
+				childrenMax = math.max(childrenMax, child.transform.localPos + childSize);
 			}
 
 			float2 contentSize = e.GetPreferredContentSize();

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using Zenject;
 
 namespace REDIZIT.RUI
@@ -18,12 +19,12 @@ namespace REDIZIT.RUI
 
 	        IList<TModel> modelList = models as IList<TModel> ?? new List<TModel>(models);
 	        int targetCount = modelList.Count;
-	        int currentCount = Element.children.Count;
+	        int currentCount = Element.Children.Count;
 
 	        // 1. УДАЛЯЕМ ЛИШНИЕ С КОНЦА (если список уменьшился)
 	        if (currentCount > targetCount)
 	        {
-		        Element.children.RemoveRange(targetCount, currentCount - targetCount);
+		        Element.RemoveChildren(targetCount, currentCount - targetCount);
 	        }
 
 	        // 2. ДОСОЗДАЕМ ТОЛЬКО НЕДОСТАЮЩИЕ (если список вырос)
@@ -35,13 +36,13 @@ namespace REDIZIT.RUI
 		        reconciler.Reconcile(lotElement, canvasTemplate.templateAst);
 		        reconciler.PostProcessBindings(lotElement);
 
-		        Element.children.Add(lotElement);
+		        Element.AddChild(lotElement);
 	        }
 
 	        // 3. МГНОВЕННОЕ ОБНОВЛЕНИЕ ДАННЫХ В ПУЛЕ
 	        for (int i = 0; i < targetCount; i++)
 	        {
-		        var lot = Element.children[i].GetComponent<TLot>();
+		        var lot = Element.Children.ElementAt(i).GetComponent<TLot>();
 		        lot?.Refresh(modelList[i]);
 	        }
 

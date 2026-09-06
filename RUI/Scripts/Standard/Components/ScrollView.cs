@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using System.Linq;
+using UnityEngine;
 
 namespace REDIZIT.RUI
 {
@@ -9,7 +10,7 @@ namespace REDIZIT.RUI
 
         [WireIgnore] private CanvasElement contentElement;
 
-        private readonly DragGestureRecognizer dragRecognizer = new DragGestureRecognizer();
+        private readonly DragGestureRecognizer dragRecognizer = new();
 
         public override void OnAttached()
         {
@@ -50,8 +51,8 @@ namespace REDIZIT.RUI
 
         private void AddScroll(float delta)
         {
-            if (contentElement == null && Element.children.Count > 0)
-                contentElement = Element.children[0];
+            if (contentElement == null && Element.Children.Count > 0)
+                contentElement = Element.Children.First();
 
             if (contentElement == null) return;
 
@@ -65,8 +66,8 @@ namespace REDIZIT.RUI
 
         public void ApplyPosition()
         {
-            if (contentElement == null && Element.children.Count > 0)
-                contentElement = Element.children[0];
+            if (contentElement == null && Element.Children.Count > 0)
+                contentElement = Element.Children.First();
 
             if (contentElement == null) return;
 
