@@ -104,6 +104,7 @@ namespace REDIZIT.RUI
             float2 totalSize = Transform.calculatedSize;
             if (totalSize.x <= 0 || totalSize.y <= 0) return;
 
+            ctx.SetLayer(sprite == null ? CanvasGenerationContext.Layer.Background : CanvasGenerationContext.Layer.Content);
             ctx.SetMaterial(targetMat);
             Matrix4x4 localToRoot = Element.LocalToRoot;
 
