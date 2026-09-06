@@ -20,6 +20,9 @@ namespace REDIZIT.RUI
 
         public void Reconcile(CanvasElement element, Node_Element node)
         {
+	        element.service = service;
+	        element.reconciler = this;
+	        
             if (service.module.composerTypes.TryGetValue(node.composerType, out Type cType))
             {
                 if (element.composer == null || element.composer.GetType() != cType)
@@ -114,7 +117,7 @@ namespace REDIZIT.RUI
 
                 if (child == null)
                 {
-                    child = new CanvasElement { key = node.key, parent = parent };
+	                child = new CanvasElement { key = node.key, parent = parent, service = service, reconciler = this };
                     parent.children.Add(child);
                 }
 

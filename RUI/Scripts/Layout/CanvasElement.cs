@@ -33,6 +33,9 @@ namespace REDIZIT.RUI
         public readonly List<CanvasComponent> components = new List<CanvasComponent>();
 
         public Action onTreeDirty;
+        
+        public CanvasService service;
+        public CanvasReconciler reconciler;
 
         public CanvasElement()
         {

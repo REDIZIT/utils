@@ -30,7 +30,7 @@ namespace REDIZIT.RUI
 	        // Если в прошлый раз уже было создано 600 элементов, этот цикл сделает 0 итераций!
 	        for (int i = currentCount; i < targetCount; i++)
 	        {
-		        CanvasElement lotElement = new CanvasElement { parent = Element };
+		        CanvasElement lotElement = new CanvasElement { parent = Element, service = canvasService, reconciler = reconciler };
         
 		        reconciler.Reconcile(lotElement, canvasTemplate.templateAst);
 		        reconciler.PostProcessBindings(lotElement);
