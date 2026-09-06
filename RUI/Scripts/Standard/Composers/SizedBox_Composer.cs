@@ -12,8 +12,8 @@ namespace REDIZIT.RUI
             
 			// Если размер элемента не задан в разметке, опрашиваем компоненты (Label/Image)
 			float2 contentSize = e.GetPreferredContentSize();
-			if (preferred.x <= 0) preferred.x = contentSize.x;
-			if (preferred.y <= 0) preferred.y = contentSize.y;
+			if (preferred.x < 0) preferred.x = contentSize.x;
+			if (preferred.y < 0) preferred.y = contentSize.y;
 
 			// Ограничения для детей:
 			// По ширине дети ограничены шириной этого SizedBox!
@@ -35,8 +35,8 @@ namespace REDIZIT.RUI
 				childrenMax = math.max(childrenMax, e.children[i].transform.localPos + childSize);
 			}
 
-			if (preferred.x <= 0) preferred.x = childrenMax.x;
-			if (preferred.y <= 0) preferred.y = childrenMax.y;
+			if (preferred.x < 0) preferred.x = childrenMax.x;
+			if (preferred.y < 0) preferred.y = childrenMax.y;
 
 			float2 finalSize = c.Constrain(preferred);
 			e.transform.size = finalSize;

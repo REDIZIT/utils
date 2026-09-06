@@ -16,9 +16,7 @@ namespace REDIZIT.RUI
 
         public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
         {
-            if (renderingData.cameraData.cameraType == CameraType.Preview || 
-                renderingData.cameraData.cameraType == CameraType.Reflection)
-                return;
+            if (renderingData.cameraData.cameraType != CameraType.Game) return;
 
             // Теперь проверяем единственный синглтон-инстанс
             if (CustomCanvas.Instance == null) return;

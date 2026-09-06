@@ -159,8 +159,9 @@ namespace REDIZIT.RUI
             if (expr is Node_NumberLiteral n) return n.value;
             if (expr is Node_StringLiteral s)
             {
-                if (target == typeof(Sprite)) return service.assetDatabase.GetSprite(s.value);
-                return s.value;
+	            if (target == typeof(Sprite)) return service.assetDatabase.GetSprite(s.value);
+	            if (target.IsEnum) return Enum.Parse(target, s.value, true);
+	            return s.value;
             }
             if (expr is Node_BooleanLiteral b) return b.value;
             if (expr is Node_ColorLiteral c)
