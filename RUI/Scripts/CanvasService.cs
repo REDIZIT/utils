@@ -1,6 +1,8 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
+using Zenject;
 
 namespace REDIZIT.RUI
 {
@@ -14,6 +16,8 @@ namespace REDIZIT.RUI
         public Assets assetDatabase;
 
         public Module module = new();
+        
+        private readonly Dictionary<Type, Func<CanvasComponent>> fastFactories = new();
         
         public CanvasService()
         {
@@ -77,6 +81,40 @@ namespace REDIZIT.RUI
 	        defaultFontBytes = fontBytes;
 	        defaultSubpixelMaterial = subpixelMaterial;
 	        ClearSubpixelCache();
+        }
+        
+        public CanvasComponent InstantiateComponent(Type type, DiContainer diContainer)
+        {
+	        // Стандартные встроенные компоненты RUI создаем мгновенно через new()!
+	        if (type == typeof(Image)) 
+	        {
+		        var img = new Image();
+		        img.canvasService = this;
+		        return img;
+	        }
+	        if (type == typeof(Button)) 
+	        {
+		        return new Button();
+	        }
+	        if (type == typeof(Label)) 
+	        {
+		        var lbl = new Label();
+		        lbl.canvasService = this;
+		        lbl.assetDatabase = this.assetDatabase;
+		        return lbl;
+	        }
+
+	        // Для остальных типов кэшируем делегат Activator
+	        if (!fastFactories.TryGetValue(type, out var factory))
+	        {
+		        // Проверяем: есть ли у класса конструктор с параметрами или [Inject] методы
+		        // Если это кастомный скрипт с инъекциями — вызываем Zenject
+		        // Иначе — быстрый Activator
+		        factory = () => (CanvasComponent)diContainer.Instantiate(type);
+		        fastFactories[type] = factory;
+	        }
+
+	        return factory();
         }
     }
 }

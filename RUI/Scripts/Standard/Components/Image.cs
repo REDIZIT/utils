@@ -16,8 +16,8 @@ namespace REDIZIT.RUI
 
         private Sprite internalSprite;
         private Material spriteMaterialInstance;
-
-        [Inject] public CanvasService canvasService;
+        
+        public CanvasService canvasService;
 
         public ImageMode mode
         {
