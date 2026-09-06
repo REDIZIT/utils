@@ -1,27 +1,22 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
-using Zenject;
 
 namespace REDIZIT.RUI
 {
     public class CanvasService
     {
-        public DiContainer container;
-       
         public readonly Dictionary<string, SubpixelFont> subpixelFontCache = new();
         public Material defaultSubpixelMaterial;
         public byte[] defaultFontBytes;
         
         public Material defaultCombinedMaterial;
-        public UIAssetDatabase assetDatabase;
+        public Assets assetDatabase;
 
         public Module module = new();
         
-        public CanvasService(DiContainer container)
+        public CanvasService()
         {
-            this.container = container;
             RegisterAssembly(typeof(CanvasComponent).Assembly);
         }
 
@@ -45,9 +40,9 @@ namespace REDIZIT.RUI
         }
 
 		// Получить или создать шрифт заданного имени и размера
-        public SubpixelFont GetOrCreateSubpixelFont(string fontName, int fontSize, UIAssetDatabase assetDb)
+        public SubpixelFont GetOrCreateSubpixelFont(string fontName, int fontSize, Assets assetDb)
         {
-	        string normName = UIAssetDatabase.NormalizeKey(fontName);
+	        string normName = Assets.NormalizeKey(fontName);
 	        string cacheKey = $"{normName}:{fontSize}";
 
 	        if (subpixelFontCache.TryGetValue(cacheKey, out SubpixelFont font))
@@ -75,12 +70,6 @@ namespace REDIZIT.RUI
 	        SubpixelFont newFont = new SubpixelFont(targetBytes, fontSize);
 	        subpixelFontCache[cacheKey] = newFont;
 	        return newFont;
-        }
-
-		// Перегрузка для дефолтного шрифта
-        public SubpixelFont GetOrCreateSubpixelFont(int fontSize)
-        {
-	        return GetOrCreateSubpixelFont(string.Empty, fontSize, null);
         }
         
         public void SetDefaultSubpixelResources(byte[] fontBytes, Material subpixelMaterial)

@@ -135,11 +135,11 @@ namespace REDIZIT.RUI
         public Vector4 GetScreenBounds()
         {
 	        Matrix4x4 m = LocalToRoot;
-	        // Левый нижний и правый верхний углы в мировых координатах экрана
+	        
 	        Vector3 pMin = m.MultiplyPoint3x4(Vector3.zero);
-	        Vector3 pMax = m.MultiplyPoint3x4(new Vector3(transform.size.x, transform.size.y, 0));
+	        Vector3 pMax = m.MultiplyPoint3x4(new(transform.size.x, transform.size.y, 0));
 
-	        return new Vector4(
+	        return new(
 		        math.min(pMin.x, pMax.x),
 		        math.min(pMin.y, pMax.y),
 		        math.max(pMin.x, pMax.x),

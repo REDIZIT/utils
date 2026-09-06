@@ -29,7 +29,7 @@ namespace REDIZIT.RUI
         public bool isDirty = true;
 
         [Inject] public CanvasService canvasService;
-        [Inject] public UIAssetDatabase assetDatabase;
+        [Inject] public Assets assetDatabase;
         [Inject] public CanvasReconciler reconciler;
 
         private string rootFilePath;

@@ -21,7 +21,7 @@ namespace REDIZIT.RUI
         private string internalFontName = string.Empty;
 
         [Inject] private CanvasService canvasService;
-        [Inject] private UIAssetDatabase assetDatabase;
+        [Inject] private Assets assetDatabase;
         
         public string font
         {

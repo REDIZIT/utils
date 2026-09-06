@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using Microsoft.Extensions.Logging;
 using UnityEngine;
 using Zenject;
@@ -12,31 +11,29 @@ using UnityEditor;
 
 namespace REDIZIT.RUI
 {
-    public class UIAssetDatabase : IInitializable, IDisposable
+    public class Assets : IInitializable, IDisposable
     {
-        public readonly Dictionary<string, string> fileSources = new Dictionary<string, string>();
-        public readonly Dictionary<string, Node_Root> fileAsts = new Dictionary<string, Node_Root>();
+	    private readonly Dictionary<string, string> fileSources = new();
+        private readonly Dictionary<string, Node_Root> fileAsts = new();
 
-        // Каталог байтов шрифтов: ключ - нормализованное имя (например "segoe-ui")
-        public readonly Dictionary<string, byte[]> fontBytes = new Dictionary<string, byte[]>();
-        public readonly Dictionary<string, string> fontPaths = new Dictionary<string, string>();
+        public readonly Dictionary<string, byte[]> fontBytes = new();
+        private readonly Dictionary<string, string> fontPaths = new();
 
-        // Каталог спрайтов (по имени файла)
-        public readonly Dictionary<string, Sprite> sprites = new Dictionary<string, Sprite>();
+        private readonly Dictionary<string, Sprite> sprites = new();
 
-        public FileSystemWatcher folderWatcher;
-        public string rootFolderPath;
+        private FileSystemWatcher folderWatcher;
+        private string rootFolderPath;
 
         public event Action<string> onFileChanged;
 
-        public bool isPendingReload;
-        public float reloadCooldown;
-        public string changedFilePath;
+        private bool isPendingReload;
+        private float reloadCooldown;
+        private string changedFilePath;
 
         private CanvasService canvasService;
         private DiContainer container;
 
-        public UIAssetDatabase(CanvasService canvasService, DiContainer container)
+        public Assets(CanvasService canvasService, DiContainer container)
         {
             this.canvasService = canvasService;
             this.canvasService.assetDatabase = this;
@@ -58,7 +55,7 @@ namespace REDIZIT.RUI
             return rawName.Trim().ToLowerInvariant().Replace("_", "").Replace("-", "").Replace(" ", "");
         }
 
-        public void ScanAndRegisterAll()
+        private void ScanAndRegisterAll()
         {
             if (!Directory.Exists(rootFolderPath)) return;
 
@@ -145,7 +142,7 @@ namespace REDIZIT.RUI
             return null;
         }
 
-        public void LoadAndProcessFile(string path)
+        private void LoadAndProcessFile(string path)
         {
 	        string text = null;
             try

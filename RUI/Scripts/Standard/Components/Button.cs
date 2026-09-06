@@ -69,6 +69,8 @@ namespace REDIZIT.RUI
 	        {
 		        targetGraphic = Element.GetComponent<Image>();
 	        }
+
+	        ApplyVisualState();
         }
 
         public override void Update()
@@ -76,8 +78,12 @@ namespace REDIZIT.RUI
 	        Vector2 mousePos = Input.mousePosition;
 	        Vector4 bounds = Element.GetScreenBounds(); // (minX, minY, maxX, maxY)
 
-	        bool inside = mousePos.x >= bounds.x && mousePos.x <= bounds.z &&
-	                      mousePos.y >= bounds.y && mousePos.y <= bounds.w;
+	        Vector4 clickArea = bounds;
+	        clickArea.z--;
+	        clickArea.w--;
+
+	        bool inside = mousePos.x >= clickArea.x && mousePos.x <= clickArea.z &&
+	                      mousePos.y >= clickArea.y && mousePos.y <= clickArea.w;
 
             bool stateChanged = false;
 
@@ -117,7 +123,7 @@ namespace REDIZIT.RUI
             }
         }
 
-        public void ApplyVisualState()
+        private void ApplyVisualState()
         {
             if (targetGraphic == null) return;
 

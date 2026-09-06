@@ -43,6 +43,8 @@ namespace REDIZIT.RUI
 
         private void ReconcileComponents(CanvasElement element, List<Node_Component> nodes)
         {
+	        List<CanvasComponent> newComponents = new();
+	        
             foreach (var node in nodes)
             {
                 if (!service.module.componentTypes.TryGetValue(node.typeName, out Type type)) continue;
@@ -60,8 +62,10 @@ namespace REDIZIT.RUI
 
                 comp.id = node.id;
                 foreach (var prop in node.properties) ApplyComponentProperty(comp, prop);
-                if (isNew) comp.OnAttached();
+                if (isNew) newComponents.Add(comp);
             }
+            
+            foreach (CanvasComponent c in newComponents) c.OnAttached();
         }
 
         private void ReconcileChildren(CanvasElement parent, List<Node_Element> nodes)
