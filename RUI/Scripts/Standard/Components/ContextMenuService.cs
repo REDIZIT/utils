@@ -71,9 +71,6 @@ namespace REDIZIT.RUI
 			var menuComp = menuElement.GetComponent<ContextMenuComponent>();
 			menuComp.SetItems(items, this, level);
 			
-			rootElement.children.Add(menuElement);
-			activeMenus.Add(new ActiveMenu { level = level, element = menuElement });
-
 			// 1. Предварительный расчет верстки меню под его реальные размеры
 			menuElement.SolveLayout(SizeConstraints.Loose(Screen.width, Screen.height));
 			float2 menuSize = menuElement.transform.calculatedSize;
