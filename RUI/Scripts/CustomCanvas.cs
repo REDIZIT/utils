@@ -31,6 +31,7 @@ namespace REDIZIT.RUI
         [Inject] private Assets assetDatabase;
         [Inject] private CanvasReconciler reconciler;
         [Inject] private CanvasInputManager inputManager;
+        [Inject] public ContextMenuService contextMenuService;
 
         private string rootFilePath;
 
@@ -83,6 +84,8 @@ namespace REDIZIT.RUI
 
             reconciler.Reconcile(root, mainNode);
             reconciler.PostProcessBindings(root);
+            
+            contextMenuService.Attach(root);
 
             MarkDirty();
         }

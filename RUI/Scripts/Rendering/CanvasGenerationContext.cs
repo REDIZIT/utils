@@ -7,14 +7,69 @@ namespace REDIZIT.RUI
 {
     public class CanvasGenerationContext
     {
-        public enum Layer
+        public enum Layer { Background = 0, Content = 1, Text = 2, Overlay = 3 }
+
+        // Словарь: Индекс слоя -> (Материал -> Батч)
+        private readonly SortedDictionary<int, Dictionary<Material, DrawBatch>> layerBuckets = new();
+        
+        // Текущее смещение (устанавливается элементом при обходе дерева)
+        public int currentLayerOffset = 0;
+        private Layer currentSubLayer = Layer.Background;
+
+        public void SetLayer(Layer subLayer)
         {
-            Background = 0,
-            Content = 1,
-            Text = 2,
-            Overlay = 3
+            currentSubLayer = subLayer;
         }
 
+        public void SetMaterial(Material mat)
+        {
+            if (mat == null) return;
+
+            // Вычисляем итоговый индекс: Офсет + Поднаряд (например 100 + 2 = 102)
+            int finalLayerIndex = currentLayerOffset + (int)currentSubLayer;
+
+            if (!layerBuckets.TryGetValue(finalLayerIndex, out var materialDict))
+            {
+                materialDict = new Dictionary<Material, DrawBatch>();
+                layerBuckets[finalLayerIndex] = materialDict;
+            }
+
+            if (!materialDict.TryGetValue(mat, out currentBatch))
+            {
+                currentBatch = new DrawBatch { material = mat };
+                materialDict[mat] = currentBatch;
+            }
+        }
+
+        public void Clear()
+        {
+            foreach (var dict in layerBuckets.Values)
+            {
+                foreach (var b in dict.Values) b.Clear();
+            }
+            finalizedBatches.Clear();
+            currentBatch = null;
+            clipStack.Clear();
+            currentLayerOffset = 0;
+        }
+
+        public void FinalizeBatches()
+        {
+            finalizedBatches.Clear();
+            // Благодаря SortedDictionary, слои будут перебраны строго по порядку (0, 1, 2... 100, 101...)
+            foreach (var dict in layerBuckets.Values)
+            {
+                foreach (var b in dict.Values)
+                {
+                    if (b.verts.Count > 0)
+                    {
+                        b.ApplyToMesh();
+                        finalizedBatches.Add(b);
+                    }
+                }
+            }
+        }
+        
         public class DrawBatch
         {
             public Material material;
@@ -79,23 +134,6 @@ namespace REDIZIT.RUI
 
         public Vector4 CurrentClipRect => clipStack.Count > 0 ? clipStack.Peek() : InfiniteClipRect;
 
-        public void SetLayer(Layer layer)
-        {
-            currentLayer = layer;
-        }
-
-        public void SetMaterial(Material mat)
-        {
-            if (mat == null) return;
-
-            var dict = layerBatches[(int)currentLayer];
-            if (!dict.TryGetValue(mat, out currentBatch))
-            {
-                currentBatch = new DrawBatch { material = mat };
-                dict[mat] = currentBatch;
-            }
-        }
-
         public void PushClipRect(Vector4 newClip)
         {
             if (clipStack.Count > 0)
@@ -116,36 +154,6 @@ namespace REDIZIT.RUI
         public void PopClipRect()
         {
             if (clipStack.Count > 0) clipStack.Pop();
-        }
-
-        public void Clear()
-        {
-            for (int l = 0; l < 4; l++)
-            {
-                foreach (var b in layerBatches[l].Values)
-                    b.Clear();
-            }
-            finalizedBatches.Clear();
-            currentBatch = null;
-            clipStack.Clear();
-        }
-
-        public void FinalizeBatches()
-        {
-            finalizedBatches.Clear();
-
-            // Собираем батчи строго в порядке слоев: Background -> Content -> Text -> Overlay
-            for (int l = 0; l < 4; l++)
-            {
-                foreach (var b in layerBatches[l].Values)
-                {
-                    if (b.verts.Count > 0)
-                    {
-                        b.ApplyToMesh();
-                        finalizedBatches.Add(b);
-                    }
-                }
-            }
         }
 
         // Отрисовка квада

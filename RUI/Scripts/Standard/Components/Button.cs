@@ -11,6 +11,8 @@ namespace REDIZIT.RUI
         private Color internalPressedColor = new Color(0.6f, 0.6f, 0.6f, 1f);
 
         public Action onClick;
+        public Action onRightClick;
+        
         public bool isHovered;
         public bool isPressed;
 
@@ -71,7 +73,14 @@ namespace REDIZIT.RUI
 
         public void OnPointerDown(PointerDownEvent e, GestureArena arena)
         {
-            if (e.button == 0) recognizer.OnPointerDown(e, arena);
+	        if (e.button == 0)
+	        {
+		        recognizer.OnPointerDown(e, arena);
+	        }
+	        else if (e.button == 1) // ПКМ
+	        {
+		        onRightClick?.Invoke();
+	        }
         }
 
         public void OnPointerMove(PointerMoveEvent e, GestureArena arena)

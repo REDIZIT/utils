@@ -10,6 +10,7 @@ namespace REDIZIT.RUI
         public string key;
         public CanvasElement parent;
         public IComposer composer;
+        public int layerOffset = 0;
 
         private bool internalIsEnabled = true;
 
@@ -105,20 +106,26 @@ namespace REDIZIT.RUI
         // Блокировка рендеринга неактивных элементов
         public void RenderTree(CanvasGenerationContext ctx)
         {
-            if (!isEnabled) return;
+	        if (!isEnabled) return;
 
-            Mask mask = GetComponent<Mask>();
-            bool hasMask = mask != null && mask.enabled;
+	        // Сохраняем старый офсет, чтобы вернуть его после отрисовки детей
+	        int previousOffset = ctx.currentLayerOffset;
+	        ctx.currentLayerOffset += layerOffset;
 
-            if (hasMask) ctx.PushClipRect(mask.GetWorldClipRect());
+	        Mask mask = GetComponent<Mask>();
+	        bool hasMask = mask != null && mask.enabled;
+	        if (hasMask) ctx.PushClipRect(mask.GetWorldClipRect());
 
-            for (int i = 0; i < components.Count; i++)
-                components[i].GenerateMesh(ctx);
+	        for (int i = 0; i < components.Count; i++)
+		        components[i].GenerateMesh(ctx);
 
-            for (int i = 0; i < children.Count; i++)
-                children[i].RenderTree(ctx);
+	        for (int i = 0; i < children.Count; i++)
+		        children[i].RenderTree(ctx);
 
-            if (hasMask) ctx.PopClipRect();
+	        if (hasMask) ctx.PopClipRect();
+
+	        // Возвращаем офсет назад
+	        ctx.currentLayerOffset = previousOffset;
         }
 
         public float2 SolveLayout(SizeConstraints constraints)

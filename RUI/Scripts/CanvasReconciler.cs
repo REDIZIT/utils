@@ -43,7 +43,7 @@ namespace REDIZIT.RUI
                     continue;
                 }
 
-                if (!ApplyTransformProperty(element.transform, prop.name, prop.value))
+                if (!ApplyTransformProperty(element, prop.name, prop.value))
                 {
                     ApplyComposerProperty(element.composer, prop);
                 }
@@ -250,8 +250,10 @@ namespace REDIZIT.RUI
             return null;
         }
 
-        private bool ApplyTransformProperty(CanvasTransform t, string name, Node_Expression expr)
+        private bool ApplyTransformProperty(CanvasElement e, string name, Node_Expression expr)
         {
+	        CanvasTransform t = e.transform;
+	        
             switch (name.ToLower())
             {
                 case "size":
@@ -273,6 +275,14 @@ namespace REDIZIT.RUI
                 case "x": t.localPos.x = (float)CastValue(ConvertValue(expr, typeof(float)), typeof(float)); return true;
                 case "y": t.localPos.y = (float)CastValue(ConvertValue(expr, typeof(float)), typeof(float)); return true;
                 case "angle": case "rot": t.angle = (float)CastValue(ConvertValue(expr, typeof(float)), typeof(float)); return true;
+                
+                case "layer":
+                case "layeroffset":
+                case "order":
+	                // Используем CastValue(..., typeof(int)), так как layerOffset - это int
+	                e.layerOffset = (int)CastValue(ConvertValue(expr, typeof(int)), typeof(int));
+	                return true;
+                
                 default: return false;
             }
         }

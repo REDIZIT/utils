@@ -8,16 +8,57 @@ namespace REDIZIT.RUI
         public readonly GestureArenaManager arenaManager = new GestureArenaManager();
         private readonly List<CanvasElement> hoveredElements = new List<CanvasElement>();
         private readonly List<CanvasElement> currentHits = new List<CanvasElement>();
+        
+        public event System.Action<PointerDownEvent, List<CanvasElement>> onGlobalPointerDown;
 
         private Vector2 lastMousePos;
 
         public void ProcessInput(CanvasElement root)
         {
-            if (root == null || !root.isEnabled) return;
+	        if (root == null || !root.isEnabled) return;
 
-            Vector2 mousePos = Input.mousePosition;
-            Vector2 delta = mousePos - lastMousePos;
-            lastMousePos = mousePos;
+	        Vector2 mousePos = Input.mousePosition;
+	        Vector2 delta = mousePos - lastMousePos;
+	        lastMousePos = mousePos;
+
+	        currentHits.Clear();
+	        HitTest(root, mousePos, currentHits);
+
+	        ProcessHover(currentHits);
+
+	        // Обработка ЛКМ (0) и ПКМ (1)
+	        for (int btn = 0; btn <= 1; btn++)
+	        {
+		        if (Input.GetMouseButtonDown(btn))
+		        {
+			        var downEvent = new PointerDownEvent(mousePos, btn, 0);
+
+			        // Оповещаем подписчиков (ContextMenuService проверит клик мимо!)
+			        onGlobalPointerDown?.Invoke(downEvent, currentHits);
+
+			        var arena = arenaManager.OpenArena(0);
+			        bool buttonCaptured = false;
+
+			        for (int i = 0; i < currentHits.Count; i++)
+			        {
+				        var compList = currentHits[i].components;
+				        for (int c = 0; c < compList.Count; c++)
+				        {
+					        var comp = compList[c];
+
+					        if (comp is Button)
+					        {
+						        if (buttonCaptured) continue;
+						        buttonCaptured = true;
+					        }
+
+					        if (comp is IPointerDownHandler handler)
+						        handler.OnPointerDown(downEvent, arena);
+				        }
+			        }
+			        arenaManager.CloseArena(0);
+		        }
+	        }
 
             // 1. Hit-Test снизу-вверх по z-order (первый в списке = самый верхний визуально)
             currentHits.Clear();
