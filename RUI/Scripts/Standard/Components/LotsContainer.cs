@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Zenject;
 
 namespace REDIZIT.RUI
@@ -7,14 +6,13 @@ namespace REDIZIT.RUI
 	public class LotsContainer : CanvasComponent
 	{
 		[Inject] public CanvasService canvasService;
-		[Inject] public CanvasReconciler reconciler; // Инжектим экземпляр!
+		[Inject] public CanvasReconciler reconciler;
 
-		public void Refresh<TLot, TModel>(IEnumerable<TModel> models) 
-			where TLot : CanvasLot<TModel>
+		public void Refresh<TLot, TModel>(IEnumerable<TModel> models) where TLot : CanvasLot<TModel>
 		{
 			if (Element == null) return;
 
-			if (!canvasService.templates.TryGetValue(typeof(TLot), out CanvasTemplate canvasTemplate))
+			if (!canvasService.module.templates.TryGetValue(typeof(TLot), out CanvasTemplate canvasTemplate))
 				return;
 
 			var modelList = models != null ? new List<TModel>(models) : new List<TModel>();

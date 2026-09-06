@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Microsoft.Extensions.Logging;
 using UnityEngine;
 using Zenject;
 
@@ -13,8 +14,6 @@ namespace REDIZIT.RUI
 {
     public class UIAssetDatabase : IInitializable, IDisposable
     {
-        public CanvasService canvasService;
-
         public readonly Dictionary<string, string> fileSources = new Dictionary<string, string>();
         public readonly Dictionary<string, Node_Root> fileAsts = new Dictionary<string, Node_Root>();
 
@@ -34,10 +33,14 @@ namespace REDIZIT.RUI
         public float reloadCooldown;
         public string changedFilePath;
 
-        public UIAssetDatabase(CanvasService canvasService)
+        private CanvasService canvasService;
+        private DiContainer container;
+
+        public UIAssetDatabase(CanvasService canvasService, DiContainer container)
         {
             this.canvasService = canvasService;
             this.canvasService.assetDatabase = this;
+            this.container = container;
         }
 
         public void Initialize()
@@ -59,7 +62,7 @@ namespace REDIZIT.RUI
         {
             if (!Directory.Exists(rootFolderPath)) return;
 
-            canvasService.templates.Clear();
+            canvasService.module.templates.Clear();
             fileSources.Clear();
             fileAsts.Clear();
             fontBytes.Clear();
@@ -118,7 +121,7 @@ namespace REDIZIT.RUI
             // Подробный читаемый отчет в консоль
             string report = $"<color=cyan>[UIAssetDatabase]</color> Сканирование завершено:\n" +
                             $" ├─ UI Файлы ({foundUiFiles.Count}): {string.Join(", ", foundUiFiles)}\n" +
-                            $" ├─ Шаблоны ({canvasService.templates.Count}): {string.Join(", ", canvasService.templates.Keys.Select(k => k.Name))}\n" +
+                            $" ├─ Шаблоны ({canvasService.module.templates.Count}): {canvasService.module.templates.Keys.ToSepString(k => k.Name)}\n" +
                             $" ├─ Шрифты ({fontBytes.Count}): {string.Join(", ", foundFonts)}\n" +
                             $" └─ Спрайты ({sprites.Count}): {string.Join(", ", foundSprites)}";
             Debug.Log(report);
@@ -155,16 +158,14 @@ namespace REDIZIT.RUI
 
                 fileSources[path] = text;
 
-                Tokenizer tokenizer = new Tokenizer();
+                Tokenizer tokenizer = new();
+                Resolver resolver = new(container.Resolve<ILogger<Resolver>>());
+                
                 List<Token> tokens = tokenizer.Tokenize(text);
                 Node_Root rootNode = Parser.Parse(tokens);
+                resolver.Resolve(rootNode, canvasService.module);
 
                 fileAsts[path] = rootNode;
-
-                for (int i = 0; i < rootNode.elements.Count; i++)
-                {
-                    canvasService.CollectTemplates(rootNode.elements[i]);
-                }
             }
             catch (Exception ex)
             {

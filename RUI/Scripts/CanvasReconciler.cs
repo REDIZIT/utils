@@ -9,20 +9,18 @@ namespace REDIZIT.RUI
 {
     public class CanvasReconciler
     {
-        private readonly CanvasService _service;
-        private readonly DiContainer _container;
+        private readonly CanvasService service;
+        private readonly DiContainer container;
 
         public CanvasReconciler(CanvasService service, DiContainer container)
         {
-            _service = service;
-            _container = container;
+            this.service = service;
+            this.container = container;
         }
-
-        // --- ОСНОВНЫЕ МЕТОДЫ RECONCILE ---
 
         public void Reconcile(CanvasElement element, Node_Element node)
         {
-            if (_service.composerTypes.TryGetValue(node.composerType, out Type cType))
+            if (service.module.composerTypes.TryGetValue(node.composerType, out Type cType))
             {
                 if (element.composer == null || element.composer.GetType() != cType)
                 {
@@ -47,7 +45,7 @@ namespace REDIZIT.RUI
         {
             foreach (var node in nodes)
             {
-                if (!_service.componentTypes.TryGetValue(node.typeName, out Type type)) continue;
+                if (!service.module.componentTypes.TryGetValue(node.typeName, out Type type)) continue;
 
                 CanvasComponent comp = null;
                 foreach (var c in element.components) if (c.GetType() == type) { comp = c; break; }
@@ -55,7 +53,7 @@ namespace REDIZIT.RUI
                 bool isNew = comp == null;
                 if (isNew)
                 {
-                    comp = (CanvasComponent)_container.Instantiate(type);
+                    comp = (CanvasComponent)container.Instantiate(type);
                     comp.Element = element;
                     element.components.Add(comp);
                 }
@@ -149,7 +147,7 @@ namespace REDIZIT.RUI
             if (expr is Node_NumberLiteral n) return n.value;
             if (expr is Node_StringLiteral s)
             {
-                if (target == typeof(Sprite)) return _service.assetDatabase.GetSprite(s.value);
+                if (target == typeof(Sprite)) return service.assetDatabase.GetSprite(s.value);
                 return s.value;
             }
             if (expr is Node_BooleanLiteral b) return b.value;
@@ -163,7 +161,7 @@ namespace REDIZIT.RUI
                 if (id.name == "auto") return 0f;
                 if (id.name == "fill") return float.PositiveInfinity;
                 if (target.IsEnum) return Enum.Parse(target, id.name, true);
-                if (target == typeof(Sprite)) return _service.assetDatabase.GetSprite(id.name);
+                if (target == typeof(Sprite)) return service.assetDatabase.GetSprite(id.name);
                 return id.name;
             }
             if (expr is Node_TupleLiteral t)
@@ -224,7 +222,7 @@ namespace REDIZIT.RUI
                 object value = null;
                 if (typeof(CanvasComponent).IsAssignableFrom(field.FieldType))
                 {
-                    if (_service.templates.ContainsKey(field.FieldType)) value = Activator.CreateInstance(field.FieldType);
+                    if (service.module.templates.ContainsKey(field.FieldType)) value = Activator.CreateInstance(field.FieldType);
                     else value = FindComponentById(root, field.FieldType, field.Name) ?? FindComponentByType(root, field.FieldType);
                 }
                 else if (field.FieldType == typeof(CanvasElement)) value = FindElementByKey(root, field.Name);
