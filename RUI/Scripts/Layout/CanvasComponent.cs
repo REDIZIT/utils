@@ -5,6 +5,7 @@ namespace REDIZIT.RUI
 	public abstract class CanvasComponent
 	{
 		public string id;
+		public bool isEnabled = true;
 		public CanvasElement Element { get; internal set; }
 		public CanvasTransform Transform => Element?.transform;
 		

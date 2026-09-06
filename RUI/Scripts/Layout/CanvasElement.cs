@@ -88,11 +88,15 @@ namespace REDIZIT.RUI
         {
             if (!isEnabled) return;
 
-            for (int i = 0; i < components.Count; i++)
-                components[i].Update();
+            foreach (CanvasComponent c in components)
+            {
+	            if (c.isEnabled) c.Update();
+            }
 
-            for (int i = 0; i < children.Count; i++)
-                children[i].UpdateTree();
+            foreach (CanvasElement child in children)
+            {
+	            child.UpdateTree();
+            }
         }
 
         // Блокировка рендеринга неактивных элементов

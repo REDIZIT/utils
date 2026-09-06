@@ -11,7 +11,6 @@ namespace REDIZIT.RUI
         public Material material;
         public float4 borderRadius = float4.zero;
 
-        // Поле для спрайта:
         private Sprite internalSprite;
         private Material spriteMaterialInstance;
 
@@ -69,6 +68,8 @@ namespace REDIZIT.RUI
 
         public override void GenerateMesh(CanvasGenerationContext ctx)
         {
+	        if (isEnabled == false) return;
+	        
             Material targetMat = spriteMaterialInstance != null ? spriteMaterialInstance : material;
             if (targetMat == null) return;
 
