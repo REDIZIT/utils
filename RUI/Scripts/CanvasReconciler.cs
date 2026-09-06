@@ -31,10 +31,18 @@ namespace REDIZIT.RUI
 
             foreach (var prop in node.properties)
             {
-                if (!ApplyTransformProperty(element.transform, prop.name, prop.value))
-                {
-                    ApplyComposerProperty(element.composer, prop);
-                }
+	            if (prop.name.Equals("enabled", StringComparison.OrdinalIgnoreCase) ||
+	                prop.name.Equals("isenabled", StringComparison.OrdinalIgnoreCase))
+	            {
+		            object val = ConvertValue(prop.value, typeof(bool));
+		            if (val is bool b) element.isEnabled = b;
+		            continue;
+	            }
+
+	            if (!ApplyTransformProperty(element.transform, prop.name, prop.value))
+	            {
+		            ApplyComposerProperty(element.composer, prop);
+	            }
             }
 
             ReconcileComponents(element, node.components);

@@ -18,24 +18,26 @@ namespace REDIZIT.RUI
 
             float2 innerMax = c.max;
             if (!float.IsPositiveInfinity(innerMax[cross]))
-            {
                 innerMax[cross] -= totalPadding[cross];
-            }
 
             float fixedMainConsumed = 0;
             float crossMax = 0;
             float totalFlex = 0;
             int expandedCount = 0;
+            int activeChildrenCount = 0;
 
-            // Учитываем размер компонентов самого элемента и явно заданный размер
             float2 selfContent = e.GetPreferredContentSize();
             if (selfContent[cross] > 0) crossMax = math.max(crossMax, selfContent[cross]);
             if (e.transform.size[cross] > 0) crossMax = math.max(crossMax, e.transform.size[cross] - totalPadding[cross]);
 
-            // ПАСС 1: Замеряем не-Expanded детей (иконки 16x16)
+            // ПАСС 1: Замеряем только активных не-Expanded детей
             for (int i = 0; i < e.children.Count; i++)
             {
                 CanvasElement child = e.children[i];
+                if (!child.isEnabled) continue; // Пропуск выключенных!
+
+                activeChildrenCount++;
+
                 if (child.composer is Expanded_Composer exp)
                 {
                     totalFlex += exp.flex > 0 ? exp.flex : 1f;
@@ -49,9 +51,9 @@ namespace REDIZIT.RUI
                 }
             }
 
-            float totalSpacing = math.max(0, e.children.Count - 1) * spacing;
+            float totalSpacing = math.max(0, activeChildrenCount - 1) * spacing;
 
-            // ПАСС 2: Раздаем оставшуюся ширину в Expanded
+            // ПАСС 2: Раздаем место только активным Expanded детям
             if (expandedCount > 0)
             {
                 float availableMainSpace = 0;
@@ -64,6 +66,8 @@ namespace REDIZIT.RUI
                 for (int i = 0; i < e.children.Count; i++)
                 {
                     CanvasElement child = e.children[i];
+                    if (!child.isEnabled) continue;
+
                     if (child.composer is Expanded_Composer exp)
                     {
                         float flexFactor = (exp.flex > 0 ? exp.flex : 1f) / (totalFlex > 0 ? totalFlex : 1f);
@@ -71,11 +75,8 @@ namespace REDIZIT.RUI
 
                         float2 childMax = innerMax;
                         childMax[main] = allocatedMain;
-                        // Если высота строки не ограничена родителем, берем высоту иконок!
                         if (float.IsPositiveInfinity(childMax[cross]) && crossMax > 0)
-                        {
                             childMax[cross] = crossMax;
-                        }
 
                         float2 childMin = 0;
                         childMin[main] = allocatedMain;
@@ -86,28 +87,25 @@ namespace REDIZIT.RUI
                 }
             }
 
-            // Итоговый размер
             float2 totalSize = 0;
             if (expandedCount > 0 && !float.IsPositiveInfinity(c.max[main]))
-            {
                 totalSize[main] = c.max[main];
-            }
             else
-            {
                 totalSize[main] = fixedMainConsumed + totalPadding[main] + totalSpacing;
-            }
+
             totalSize[cross] = crossMax + totalPadding[cross];
 
             float2 finalSize = c.Constrain(totalSize);
             e.transform.size = finalSize;
 
-            // ПАСС 3: Расстановка детей
+            // ПАСС 3: Расстановка только активных детей
             float cursor = 0;
             for (int i = 0; i < e.children.Count; i++)
             {
                 CanvasElement child = e.children[i];
-                float2 childPos = 0;
+                if (!child.isEnabled) continue;
 
+                float2 childPos = 0;
                 if (axis == LayoutDirection.Vertical)
                 {
                     childPos.y = finalSize.y - padding.w - cursor - child.transform.size.y;

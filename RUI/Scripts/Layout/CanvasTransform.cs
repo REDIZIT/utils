@@ -6,13 +6,30 @@ namespace REDIZIT.RUI
 	public class CanvasTransform
 	{
 		public float2 localPos = float2.zero;
-		public float2 size = 0;
+		public float2 size = float2.zero;
 		public float2 scale = new float2(1f, 1f);
+		public float angle = 0f; // Угол поворота в градусах вокруг центра элемента
 
-		public Matrix4x4 LocalMatrix => Matrix4x4.TRS(
-			new Vector3(localPos.x, localPos.y, 0f),
-			Quaternion.identity,
-			new Vector3(scale.x, scale.y, 1f)
-		);
+		public Matrix4x4 LocalMatrix
+		{
+			get
+			{
+				// Если нет вращения и масштаб стандартный — быстрый путь без лишних матриц
+				if (angle == 0f && scale.x == 1f && scale.y == 1f)
+				{
+					return Matrix4x4.Translate(new Vector3(localPos.x, localPos.y, 0f));
+				}
+
+				float2 c = size * 0.5f;
+				Vector3 centerInParent = new Vector3(localPos.x + c.x, localPos.y + c.y, 0f);
+				Quaternion rotation = Quaternion.Euler(0f, 0f, angle);
+				Vector3 scale3D = new Vector3(scale.x, scale.y, 1f);
+
+				Matrix4x4 trs = Matrix4x4.TRS(centerInParent, rotation, scale3D);
+				Matrix4x4 invCenter = Matrix4x4.Translate(new Vector3(-c.x, -c.y, 0f));
+
+				return trs * invCenter;
+			}
+		}
 	}
 }
