@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using Zenject;
 
-namespace InGame.UI
+namespace REDIZIT.RUI
 {
 	public class LotsContainer : CanvasComponent
 	{

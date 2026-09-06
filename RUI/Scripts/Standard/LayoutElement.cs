@@ -1,4 +1,4 @@
-﻿namespace InGame.UI
+﻿namespace REDIZIT.RUI
 {
 	public class LayoutElement : CanvasComponent
 	{

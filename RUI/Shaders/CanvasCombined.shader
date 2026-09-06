@@ -1,4 +1,4 @@
-Shader "InGame/UI/CanvasCombined"
+Shader "REDIZIT/RUI/CanvasCombined"
 {
     Properties
     {

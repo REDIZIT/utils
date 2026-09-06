@@ -4,7 +4,7 @@ using System.Reflection;
 using UnityEngine;
 using Zenject;
 
-namespace InGame.UI
+namespace REDIZIT.RUI
 {
     public class CanvasService
     {

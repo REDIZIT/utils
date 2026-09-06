@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 
-namespace InGame.UI
+namespace REDIZIT.RUI
 {
     public class ScrollView : CanvasComponent
     {

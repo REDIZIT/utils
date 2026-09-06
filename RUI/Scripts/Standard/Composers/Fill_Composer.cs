@@ -1,6 +1,6 @@
 ﻿using Unity.Mathematics;
 
-namespace InGame.UI
+namespace REDIZIT.RUI
 {
 	public class Fill_Composer : IComposer
 	{

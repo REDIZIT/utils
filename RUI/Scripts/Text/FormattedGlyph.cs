@@ -1,6 +1,6 @@
 ﻿using Unity.Mathematics;
 
-namespace InGame.UI
+namespace REDIZIT.RUI
 {
 	public struct FormattedGlyph
 	{

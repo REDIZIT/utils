@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace InGame.UI
+namespace REDIZIT.RUI
 {
 	public class CanvasTemplate
 	{

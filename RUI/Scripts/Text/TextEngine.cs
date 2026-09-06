@@ -4,7 +4,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.TextCore;
 
-namespace InGame.UI
+namespace REDIZIT.RUI
 {
     public static class TextEngine
     {

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
 
-namespace InGame.UI
+namespace REDIZIT.RUI
 {
     public class CanvasElement
     {
@@ -21,7 +21,7 @@ namespace InGame.UI
 
         public CanvasElement()
         {
-	        composer = new Absolute_Composer { e = this };
+	        composer = new SizedBox_Composer { e = this };
         }
 
         public void MarkDirty()

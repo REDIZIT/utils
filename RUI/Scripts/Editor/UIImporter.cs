@@ -3,7 +3,7 @@ using System.IO;
 using UnityEditor.AssetImporters;
 using UnityEngine;
 
-namespace InGame.UI.Editor
+namespace REDIZIT.RUI.Editor
 {
 	[ScriptedImporter(1, "ui")]
 	public class UIImporter : ScriptedImporter

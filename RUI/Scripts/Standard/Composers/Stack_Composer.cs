@@ -1,7 +1,7 @@
 ﻿using Unity.Mathematics;
 using UnityEngine;
 
-namespace InGame.UI
+namespace REDIZIT.RUI
 {
     public class Stack_Composer : IComposer
     {

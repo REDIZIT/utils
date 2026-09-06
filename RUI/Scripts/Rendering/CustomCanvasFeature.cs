@@ -3,7 +3,7 @@ using UnityEngine.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Rendering.Universal;
 
-namespace InGame.UI
+namespace REDIZIT.RUI
 {
     public class CustomCanvasFeature : ScriptableRendererFeature
     {

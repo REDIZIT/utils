@@ -1,8 +1,8 @@
 ﻿using Unity.Mathematics;
 
-namespace InGame.UI
+namespace REDIZIT.RUI
 {
-	public class Absolute_Composer : IComposer
+	public class SizedBox_Composer : IComposer
 	{
 		public CanvasElement e;
 

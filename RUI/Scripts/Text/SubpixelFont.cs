@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 using Unity.Mathematics;
 using UnityEngine;
 
-namespace InGame.UI
+namespace REDIZIT.RUI
 {
     public class SubpixelFont : IDisposable
     {

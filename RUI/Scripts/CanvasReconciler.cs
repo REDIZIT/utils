@@ -5,7 +5,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using Zenject;
 
-namespace InGame.UI
+namespace REDIZIT.RUI
 {
     public class CanvasReconciler
     {

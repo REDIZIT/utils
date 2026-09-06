@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Globalization;
 
-namespace InGame.UI
+namespace REDIZIT.RUI
 {
     public static class Parser
     {

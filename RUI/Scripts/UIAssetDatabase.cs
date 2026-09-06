@@ -9,7 +9,7 @@ using Zenject;
 using UnityEditor;
 #endif
 
-namespace InGame.UI
+namespace REDIZIT.RUI
 {
     public class UIAssetDatabase : IInitializable, IDisposable
     {

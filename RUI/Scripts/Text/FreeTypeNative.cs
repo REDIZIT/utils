@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Runtime.InteropServices;
 
-namespace InGame.UI
+namespace REDIZIT.RUI
 {
     public static class FreeTypeNative
     {

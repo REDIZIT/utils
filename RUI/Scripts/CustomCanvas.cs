@@ -9,7 +9,7 @@ using Zenject;
 using UnityEditor;
 #endif
 
-namespace InGame.UI
+namespace REDIZIT.RUI
 {
     [ExecuteAlways]
     public class CustomCanvas : MonoBehaviour
@@ -53,7 +53,7 @@ namespace InGame.UI
         private void InitResources()
         {
 	        // Материал для субпиксельного шейдера
-	        var subpixelShader = Shader.Find("InGame/UI/SubpixelText");
+	        var subpixelShader = Shader.Find("REDIZIT/RUI/SubpixelText");
 	        Material subpixelMat = subpixelShader != null ? new Material(subpixelShader) : null;
 
 	        // Если в UIAssetDatabase нашелся любой шрифт — берем его дефолтным:

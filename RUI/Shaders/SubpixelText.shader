@@ -1,4 +1,4 @@
-Shader "InGame/UI/SubpixelText"
+Shader "REDIZIT/RUI/SubpixelText"
 {
     Properties
     {

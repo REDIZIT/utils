@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-namespace InGame.UI
+namespace REDIZIT.RUI
 {
     public abstract class Node
     {

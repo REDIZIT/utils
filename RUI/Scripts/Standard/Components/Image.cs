@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.Sprites;
 using Zenject;
 
-namespace InGame.UI
+namespace REDIZIT.RUI
 {
     public class Image : CanvasComponent
     {
