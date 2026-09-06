@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace REDIZIT.RUI
 {
-    public class Button : CanvasComponent
+    public class Button : CanvasComponent, IPointerDownHandler, IPointerMoveHandler, IPointerUpHandler, IPointerEnterHandler, IPointerExitHandler
     {
         private Image internalTargetGraphic;
         private Color internalNormalColor = Color.white;
@@ -14,116 +14,89 @@ namespace REDIZIT.RUI
         public bool isHovered;
         public bool isPressed;
 
+        private readonly TapGestureRecognizer recognizer = new TapGestureRecognizer();
+
         public Image targetGraphic
         {
             get => internalTargetGraphic;
-            set
-            {
-                if (internalTargetGraphic == value) return;
-                internalTargetGraphic = value;
-                ApplyVisualState();
-            }
+            set { internalTargetGraphic = value; ApplyVisualState(); }
         }
 
         public Color normalColor
         {
             get => internalNormalColor;
-            set
-            {
-                if (internalNormalColor == value) return;
-                internalNormalColor = value;
-                if (!isHovered && !isPressed)
-                    ApplyVisualState();
-            }
+            set { internalNormalColor = value; ApplyVisualState(); }
         }
 
         public Color hoverColor
         {
             get => internalHoverColor;
-            set
-            {
-                if (internalHoverColor == value) return;
-                internalHoverColor = value;
-                if (isHovered && !isPressed)
-                    ApplyVisualState();
-            }
+            set { internalHoverColor = value; ApplyVisualState(); }
         }
 
         public Color pressedColor
         {
             get => internalPressedColor;
-            set
-            {
-                if (internalPressedColor == value) return;
-                internalPressedColor = value;
-                if (isPressed)
-                    ApplyVisualState();
-            }
+            set { internalPressedColor = value; ApplyVisualState(); }
         }
-        
+
         public override void OnAttached()
         {
-	        base.OnAttached();
+            base.OnAttached();
+            if (targetGraphic == null && Element != null)
+                targetGraphic = Element.GetComponent<Image>();
 
-	        if (targetGraphic == null && Element != null)
-	        {
-		        targetGraphic = Element.GetComponent<Image>();
-	        }
-
-	        ApplyVisualState();
-        }
-
-        public override void Update()
-        {
-	        Vector2 mousePos = Input.mousePosition;
-	        Vector4 bounds = Element.GetScreenBounds(); // (minX, minY, maxX, maxY)
-
-	        Vector4 clickArea = bounds;
-	        clickArea.z--;
-	        clickArea.w--;
-
-	        bool inside = mousePos.x >= clickArea.x && mousePos.x <= clickArea.z &&
-	                      mousePos.y >= clickArea.y && mousePos.y <= clickArea.w;
-
-            bool stateChanged = false;
-
-            if (inside != isHovered)
+            recognizer.onDown = () =>
             {
-                isHovered = inside;
-                stateChanged = true;
-            }
-
-            if (isHovered)
-            {
-                if (Input.GetMouseButtonDown(0))
-                {
-                    isPressed = true;
-                    stateChanged = true;
-                }
-
-                if (Input.GetMouseButtonUp(0) && isPressed)
-                {
-                    isPressed = false;
-                    stateChanged = true;
-                    onClick?.Invoke();
-                }
-            }
-            else
-            {
-                if (isPressed)
-                {
-                    isPressed = false;
-                    stateChanged = true;
-                }
-            }
-
-            if (stateChanged)
-            {
+                isPressed = true;
                 ApplyVisualState();
-            }
+            };
+
+            recognizer.onCancel = () =>
+            {
+                isPressed = false;
+                ApplyVisualState();
+            };
+
+            recognizer.onTap = () =>
+            {
+                isPressed = false;
+                ApplyVisualState();
+                onClick?.Invoke();
+            };
+
+            // Применяем визуал сразу при монтировании компонента
+            ApplyVisualState();
         }
 
-        private void ApplyVisualState()
+        public void OnPointerDown(PointerDownEvent e, GestureArena arena)
+        {
+            if (e.button == 0) recognizer.OnPointerDown(e, arena);
+        }
+
+        public void OnPointerMove(PointerMoveEvent e, GestureArena arena)
+        {
+            recognizer.OnPointerMove(e, arena);
+        }
+
+        public void OnPointerUp(PointerUpEvent e, GestureArena arena)
+        {
+            if (e.button == 0) recognizer.OnPointerUp(e, arena);
+        }
+
+        public void OnPointerEnter()
+        {
+            isHovered = true;
+            ApplyVisualState();
+        }
+
+        public void OnPointerExit()
+        {
+            isHovered = false;
+            ApplyVisualState();
+        }
+
+        public void ApplyVisualState()
         {
             if (targetGraphic == null) return;
 
@@ -134,7 +107,7 @@ namespace REDIZIT.RUI
             if (targetGraphic.color != targetColor)
             {
                 targetGraphic.color = targetColor;
-                MarkDirty(); // Вызываем локальный MarkDirty компонента!
+                MarkDirty();
             }
         }
     }

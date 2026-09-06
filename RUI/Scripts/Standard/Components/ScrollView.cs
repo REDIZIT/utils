@@ -2,73 +2,90 @@
 
 namespace REDIZIT.RUI
 {
-    public class ScrollView : CanvasComponent
+    public class ScrollView : CanvasComponent, IPointerScrollHandler, IPointerDownHandler, IPointerMoveHandler, IPointerUpHandler
     {
-        public float scrollSpeed = 25f;
+        public float speed = 48f;
         public float scrollPosition = 0f;
 
         [WireIgnore] private CanvasElement contentElement;
+
+        private readonly DragGestureRecognizer dragRecognizer = new DragGestureRecognizer();
 
         public override void OnAttached()
         {
             base.OnAttached();
             EnsureComponent<Mask>();
+
+            // Исправление инверсии перетаскивания:
+            dragRecognizer.onDragUpdate = (delta) =>
+            {
+                AddScroll(delta.y);
+            };
+
+            ApplyPosition();
         }
 
         public override void Update()
         {
-            if (Element == null) return;
-
-            // Находим контент (первый дочерний элемент)
-            if (contentElement == null && Element.children.Count > 0)
-            {
-                contentElement = Element.children[0];
-            }
-
-            if (contentElement == null) return;
-
-            HandleInput();
+            base.Update();
+            // Гарантирует корректное позиционирование контента даже без ввода
             ApplyPosition();
         }
 
-        private void HandleInput()
+        public void OnPointerScroll(PointerScrollEvent e)
         {
-            Vector2 mousePos = Input.mousePosition;
-            Vector4 bounds = Element.GetScreenBounds();
+            AddScroll(-e.scrollDelta.y * speed);
+        }
 
-            bool isHovered = mousePos.x >= bounds.x && mousePos.x <= bounds.z &&
-                             mousePos.y >= bounds.y && mousePos.y <= bounds.w;
+        public void OnPointerDown(PointerDownEvent e, GestureArena arena)
+        {
+            if (e.button == 0) dragRecognizer.OnPointerDown(e, arena);
+        }
 
-            if (!isHovered) return;
+        public void OnPointerMove(PointerMoveEvent e, GestureArena arena)
+        {
+            dragRecognizer.OnPointerMove(e, arena);
+        }
 
-            float scrollDelta = Input.mouseScrollDelta.y;
-            if (Mathf.Abs(scrollDelta) < 0.001f) return;
+        public void OnPointerUp(PointerUpEvent e, GestureArena arena)
+        {
+            if (e.button == 0) dragRecognizer.OnPointerUp(e, arena);
+        }
+
+        private void AddScroll(float delta)
+        {
+            if (contentElement == null && Element.children.Count > 0)
+                contentElement = Element.children[0];
+
+            if (contentElement == null) return;
 
             float viewportHeight = Transform.calculatedSize.y;
             float contentHeight = contentElement.transform.calculatedSize.y;
             float maxScroll = Mathf.Max(0f, contentHeight - viewportHeight);
 
-            scrollPosition += -scrollDelta * scrollSpeed;
-            scrollPosition = Mathf.Clamp(scrollPosition, 0f, maxScroll);
+            scrollPosition = Mathf.Clamp(scrollPosition + delta, 0f, maxScroll);
+            ApplyPosition();
         }
 
-        private void ApplyPosition()
+        public void ApplyPosition()
         {
-	        float viewportHeight = Transform.calculatedSize.y;
-	        float contentHeight = contentElement.transform.calculatedSize.y;
-	        float maxScroll = Mathf.Max(0f, contentHeight - viewportHeight);
+            if (contentElement == null && Element.children.Count > 0)
+                contentElement = Element.children[0];
 
-	        scrollPosition = Mathf.Clamp(scrollPosition, 0f, maxScroll);
+            if (contentElement == null) return;
 
-	        // Когда скролл 0, низ контента находится в (viewportHeight - contentHeight)
-	        // Когда мы крутим колесико, контент уезжает вверх (+scrollPosition)
-	        float targetY = (viewportHeight - contentHeight) + scrollPosition;
+            float viewportHeight = Transform.calculatedSize.y;
+            float contentHeight = contentElement.transform.calculatedSize.y;
+            float maxScroll = Mathf.Max(0f, contentHeight - viewportHeight);
+            scrollPosition = Mathf.Clamp(scrollPosition, 0f, maxScroll);
 
-	        if (Mathf.Abs(contentElement.transform.localPos.y - targetY) > 0.001f)
-	        {
-		        contentElement.transform.localPos.y = targetY;
-		        MarkDirty();
-	        }
+            // При scrollPosition = 0 верхушка контента точно прижата к верху окна просмотра
+            float targetY = (viewportHeight - contentHeight) + scrollPosition;
+            if (Mathf.Abs(contentElement.transform.localPos.y - targetY) > 0.001f)
+            {
+                contentElement.transform.localPos.y = targetY;
+                MarkDirty();
+            }
         }
     }
 }

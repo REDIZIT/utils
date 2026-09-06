@@ -17,20 +17,20 @@ namespace REDIZIT.RUI
         public static CustomCanvas Instance { get; set; }
 
         public Material combinedMaterial;
-        public TMP_FontAsset fontAsset;
 
         [Header("Главный файл экрана")]
         public TextAsset rootFile;
 
         private Material textMaterial;
 
-        public readonly CanvasGenerationContext context = new CanvasGenerationContext();
+        public readonly CanvasGenerationContext context = new();
         public CanvasElement root;
         public bool isDirty = true;
 
-        [Inject] public CanvasService canvasService;
-        [Inject] public Assets assetDatabase;
-        [Inject] public CanvasReconciler reconciler;
+        [Inject] private CanvasService canvasService;
+        [Inject] private Assets assetDatabase;
+        [Inject] private CanvasReconciler reconciler;
+        [Inject] private CanvasInputManager inputManager;
 
         private string rootFilePath;
 
@@ -113,6 +113,7 @@ namespace REDIZIT.RUI
 
 	        if (Application.isPlaying)
 	        {
+		        inputManager?.ProcessInput(root);
 		        root.UpdateTree();
 	        }
 
