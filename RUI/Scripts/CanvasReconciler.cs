@@ -45,8 +45,12 @@ namespace REDIZIT.RUI
 	            }
             }
 
-            ReconcileComponents(element, node.components);
+            
             ReconcileChildren(element, node.children);
+            
+            // Invoke ReconcileComponents (and WireFields) AFTER ReconcileChildren
+            // due to: auto wiring can reference to children components
+            ReconcileComponents(element, node.components);
         }
 
         private void ReconcileComponents(CanvasElement element, List<Node_Component> nodes)
@@ -72,8 +76,12 @@ namespace REDIZIT.RUI
                 foreach (var prop in node.properties) ApplyComponentProperty(comp, prop);
                 if (isNew) newComponents.Add(comp);
             }
-            
-            foreach (CanvasComponent c in newComponents) c.OnAttached();
+
+            foreach (CanvasComponent c in newComponents)
+            {
+	            WireFields(c, element);
+	            c.OnAttached();
+            }
         }
 
         private void ReconcileChildren(CanvasElement parent, List<Node_Element> nodes)
@@ -101,7 +109,6 @@ namespace REDIZIT.RUI
                 parent.children.RemoveRange(nodes.Count, parent.children.Count - nodes.Count);
         }
 
-        // --- ПРИМЕНЕНИЕ СВОЙСТВ ---
 
         private void ApplyComponentProperty(CanvasComponent comp, Node_Property prop)
         {
@@ -188,8 +195,7 @@ namespace REDIZIT.RUI
 			        return false;
 	        }
         }
-
-        // --- КОНВЕРТАЦИЯ И ПРИВЕДЕНИЕ ТИПОВ ---
+        
 
         private object ConvertValue(Node_Expression expr, Type target)
         {
@@ -223,8 +229,7 @@ namespace REDIZIT.RUI
             }
             return null;
         }
-
-        // Умное приведение типов: обрабатывает примитивы и расширение скаляров в векторы Unity.Mathematics
+        
         private object CastValue(object val, Type targetType)
         {
             if (val == null) return null;
@@ -257,12 +262,10 @@ namespace REDIZIT.RUI
         private static float? ParseDimension(Node_Expression expr)
         {
 	        if (expr is Node_NumberLiteral num) return num.value;
-	        if (expr is Node_IdentifierReference id && id.name.Equals("auto", StringComparison.OrdinalIgnoreCase))
-		        return null; // auto = null!
+	        if (expr is Node_IdentifierReference id && id.name.Equals("auto", StringComparison.OrdinalIgnoreCase)) return null; // auto = null!
 	        return null;
         }
-
-        // --- POST PROCESS BINDINGS (Авто-связывание полей) ---
+        
 
         public void PostProcessBindings(CanvasElement root)
         {
@@ -275,17 +278,36 @@ namespace REDIZIT.RUI
             var fields = target.GetType().GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
             foreach (var field in fields)
             {
-                if (field.Name == "Element" || field.Name == "Transform" || field.Name == "id") continue;
+	            if (field.Name == "Element" || field.Name == "Transform" || field.Name == "id") continue;
 
-                object value = null;
-                if (typeof(CanvasComponent).IsAssignableFrom(field.FieldType))
-                {
-                    if (service.module.templates.ContainsKey(field.FieldType)) value = Activator.CreateInstance(field.FieldType);
-                    else value = FindComponentById(root, field.FieldType, field.Name) ?? FindComponentByType(root, field.FieldType);
-                }
-                else if (field.FieldType == typeof(CanvasElement)) value = FindElementByKey(root, field.Name);
+	            bool isComponentType = false;
+	            bool isIgnored = field.GetCustomAttribute<WireIgnoreAttribute>() != null;
+	            if (isIgnored) continue;
 
-                if (value != null) field.SetValue(target, value);
+	            object value = null;
+	            if (typeof(CanvasComponent).IsAssignableFrom(field.FieldType))
+	            {
+		            isComponentType = true;
+		            if (service.module.templates.ContainsKey(field.FieldType))
+		            {
+			            value = Activator.CreateInstance(field.FieldType);
+		            }
+		            else
+		            {
+			            value = FindComponentById(root, field.FieldType, field.Name) ?? FindComponentByType(root, field.FieldType);
+		            }
+	            }
+	            else if (field.FieldType == typeof(CanvasElement))
+	            {
+		            isComponentType = true;
+		            value = FindElementByKey(root, field.Name);
+	            }
+
+	            if (isComponentType)
+	            {
+		            if (value != null) field.SetValue(target, value);
+		            else throw new WireException($"Requested element '{field.Name}' of type {field.FieldType} not found");
+	            }
             }
         }
 

@@ -7,7 +7,7 @@ namespace REDIZIT.RUI
         public float scrollSpeed = 25f;
         public float scrollPosition = 0f;
 
-        public CanvasElement contentElement;
+        [WireIgnore] private CanvasElement contentElement;
 
         public override void OnAttached()
         {
