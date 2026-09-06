@@ -120,13 +120,19 @@ namespace REDIZIT.RUI
 
         public float2 SolveLayout(SizeConstraints constraints)
         {
-            if (!isEnabled) return float2.zero;
-            return composer.Solve(constraints);
-        }
+	        if (!isEnabled) return float2.zero;
 
-        public void SetComposer(IComposer newComposer)
-        {
-            composer = newComposer;
+	        // 1. Композер рассчитывает размеры элемента и расставляет детей
+	        float2 result = composer.Solve(constraints);
+
+	        // 2. Хук завершения верстки: компоненты (ScrollView, ползунки, тултипы)
+	        // получают доступ к 100% свежим размерам в этом же кадре!
+	        for (int i = 0; i < components.Count; i++)
+	        {
+		        components[i].OnLayoutComplete();
+	        }
+
+	        return result;
         }
 
         public float2 GetPreferredContentSize()

@@ -16,19 +16,15 @@ namespace REDIZIT.RUI
             base.OnAttached();
             EnsureComponent<Mask>();
 
-            // Исправление инверсии перетаскивания:
             dragRecognizer.onDragUpdate = (delta) =>
             {
                 AddScroll(delta.y);
             };
-
-            ApplyPosition();
         }
 
-        public override void Update()
+        // Вызывается САМИМ ДВИЖКОМ ровно в момент, когда размеры контента пересчитаны!
+        public override void OnLayoutComplete()
         {
-            base.Update();
-            // Гарантирует корректное позиционирование контента даже без ввода
             ApplyPosition();
         }
 
@@ -79,12 +75,10 @@ namespace REDIZIT.RUI
             float maxScroll = Mathf.Max(0f, contentHeight - viewportHeight);
             scrollPosition = Mathf.Clamp(scrollPosition, 0f, maxScroll);
 
-            // При scrollPosition = 0 верхушка контента точно прижата к верху окна просмотра
             float targetY = (viewportHeight - contentHeight) + scrollPosition;
             if (Mathf.Abs(contentElement.transform.localPos.y - targetY) > 0.001f)
             {
                 contentElement.transform.localPos.y = targetY;
-                MarkDirty();
             }
         }
     }

@@ -98,6 +98,8 @@ namespace REDIZIT.RUI
 
         public override void GenerateMesh(CanvasGenerationContext ctx)
         {
+	        if (isEnabled == false) return;
+	        
             Material targetMat = spriteMaterialInstance != null ? spriteMaterialInstance : material;
             if (targetMat == null) return;
 

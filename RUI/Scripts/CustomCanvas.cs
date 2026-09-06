@@ -119,9 +119,11 @@ namespace REDIZIT.RUI
 
 	        if (isDirty)
 	        {
-		        var screenConstraints = SizeConstraints.Tight(new(Screen.width, Screen.height));
+		        // Верстка (внутри себя сама вызывает OnLayoutComplete у нужных компонентов)
+		        var screenConstraints = SizeConstraints.Tight(new float2(Screen.width, Screen.height));
 		        root.SolveLayout(screenConstraints);
 
+		        // Отрисовка
 		        context.Clear();
 		        root.RenderTree(context);
 		        context.FinalizeBatches();

@@ -31,6 +31,8 @@ namespace REDIZIT.RUI
 			subs.Dispose();
 		}
 
+		public virtual void OnLayoutComplete() { }
+		
 		public virtual void GenerateMesh(CanvasGenerationContext ctx) { }
 		public virtual void Update() { }
 
