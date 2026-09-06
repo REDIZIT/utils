@@ -16,117 +16,96 @@ namespace REDIZIT.RUI
 
         public void ProcessInput(CanvasElement root)
         {
-	        if (root == null || !root.isEnabled) return;
+            if (root == null || !root.isEnabled) return;
 
-	        Vector2 mousePos = Input.mousePosition;
-	        Vector2 delta = mousePos - lastMousePos;
-	        lastMousePos = mousePos;
+            Vector2 mousePos = Input.mousePosition;
+            Vector2 delta = mousePos - lastMousePos;
+            lastMousePos = mousePos;
 
-	        currentHits.Clear();
-	        HitTest(root, mousePos, currentHits);
-
-	        ProcessHover(currentHits);
-
-	        // Обработка ЛКМ (0) и ПКМ (1)
-	        for (int btn = 0; btn <= 1; btn++)
-	        {
-		        if (Input.GetMouseButtonDown(btn))
-		        {
-			        var downEvent = new PointerDownEvent(mousePos, btn, 0);
-
-			        // Оповещаем подписчиков (ContextMenuService проверит клик мимо!)
-			        onGlobalPointerDown?.Invoke(downEvent, currentHits);
-
-			        var arena = arenaManager.OpenArena(0);
-			        bool buttonCaptured = false;
-			        
-			        foreach (CanvasElement hit in currentHits)
-			        foreach (CanvasComponent comp in hit.Components)
-			        {
-				        if (comp is Button)
-				        {
-					        if (buttonCaptured) continue;
-					        buttonCaptured = true;
-				        }
-
-				        if (comp is IPointerDownHandler handler)
-				        {
-					        handler.OnPointerDown(downEvent, arena);
-				        }
-			        }
-
-			        arenaManager.CloseArena(0);
-		        }
-	        }
-
-            // 1. Hit-Test снизу-вверх по z-order (первый в списке = самый верхний визуально)
+            // 1. Единый Hit-Test для текущего кадра
             currentHits.Clear();
             HitTest(root, mousePos, currentHits);
 
-            // 2. Обработка Hover (только верхняя кнопка подсвечивается!)
+            // 2. Единая обработка Hover
             ProcessHover(currentHits);
 
-            // 3. Обработка PointerDown
-            if (Input.GetMouseButtonDown(0))
+            // 3. Обработка нажатий (Down) - объединяем ЛКМ и ПКМ
+            for (int btn = 0; btn <= 1; btn++)
             {
-                var arena = arenaManager.OpenArena(0);
-                var downEvent = new PointerDownEvent(mousePos, 0, 0);
-
-                bool buttonCaptured = false;
-                
-                foreach (CanvasElement hit in currentHits)
-                foreach (CanvasComponent comp in hit.Components)
+                if (Input.GetMouseButtonDown(btn))
                 {
-	                // Только самая верхняя кнопка получает PointerDown и входит в арену!
-	                if (comp is Button)
-	                {
-		                if (buttonCaptured) continue;
-		                buttonCaptured = true;
-	                }
+                    var downEvent = new PointerDownEvent(mousePos, btn, 0);
 
-	                if (comp is IPointerDownHandler handler)
-	                {
-		                handler.OnPointerDown(downEvent, arena);
-	                }
+                    // Уведомляем глобальных слушателей (например, закрытие контекстного меню)
+                    onGlobalPointerDown?.Invoke(downEvent, currentHits);
+
+                    // Открываем арену жестов
+                    var arena = arenaManager.OpenArena(0);
+                    bool buttonCaptured = false;
+                    
+                    foreach (CanvasElement hit in currentHits)
+                    {
+                        foreach (CanvasComponent comp in hit.Components)
+                        {
+                            // Ограничиваем: только самая верхняя кнопка вступает в борьбу за нажатие
+                            if (comp is Button)
+                            {
+                                if (buttonCaptured) continue;
+                                buttonCaptured = true;
+                            }
+
+                            if (comp is IPointerDownHandler handler)
+                            {
+                                handler.OnPointerDown(downEvent, arena);
+                            }
+                        }
+                    }
+
+                    // Закрываем арену для приема новых участников (теперь они должны доказывать победу)
+                    arenaManager.CloseArena(0);
                 }
-
-                arenaManager.CloseArena(0);
             }
 
-            // 4. Обработка PointerMove
+            // 4. Обработка движения (Move)
             if (delta.sqrMagnitude > 0.0001f)
             {
                 var arena = arenaManager.GetArena(0);
+                // Move рассылаем только если арена активна (зажата кнопка)
                 if (arena != null)
                 {
                     var moveEvent = new PointerMoveEvent(mousePos, delta, 0);
                     
                     foreach (CanvasElement hit in currentHits)
-                    foreach (CanvasComponent comp in hit.Components)
                     {
-	                    if (comp is IPointerMoveHandler handler)
-	                    {
-		                    handler.OnPointerMove(moveEvent, arena);
-	                    }
+                        foreach (CanvasComponent comp in hit.Components)
+                        {
+                            if (comp is IPointerMoveHandler handler)
+                            {
+                                handler.OnPointerMove(moveEvent, arena);
+                            }
+                        }
                     }
                 }
             }
 
-            // 5. Обработка PointerUp
+            // 5. Обработка отпускания (Up)
             if (Input.GetMouseButtonUp(0))
             {
                 var arena = arenaManager.GetArena(0);
                 var upEvent = new PointerUpEvent(mousePos, 0, 0);
                 
                 foreach (CanvasElement hit in currentHits)
-                foreach (CanvasComponent comp in hit.Components)
                 {
-	                if (comp is IPointerUpHandler handler)
-	                {
-		                handler.OnPointerUp(upEvent, arena);
-	                }
+                    foreach (CanvasComponent comp in hit.Components)
+                    {
+                        if (comp is IPointerUpHandler handler)
+                        {
+                            handler.OnPointerUp(upEvent, arena);
+                        }
+                    }
                 }
 
+                // Решаем исход арены (обычно здесь побеждает Tap, если не было скролла)
                 arenaManager.Sweep(0);
             }
 
@@ -137,13 +116,15 @@ namespace REDIZIT.RUI
                 var scrollEvent = new PointerScrollEvent(mousePos, scroll, 0);
                 
                 foreach (CanvasElement hit in currentHits)
-                foreach (CanvasComponent comp in hit.Components)
                 {
-	                if (comp is IPointerScrollHandler handler)
-	                {
-		                handler.OnPointerScroll(scrollEvent);
-		                return;
-	                }
+                    foreach (CanvasComponent comp in hit.Components)
+                    {
+                        if (comp is IPointerScrollHandler handler)
+                        {
+                            handler.OnPointerScroll(scrollEvent);
+                            return; // Поглощаем скролл
+                        }
+                    }
                 }
             }
         }
@@ -160,6 +141,7 @@ namespace REDIZIT.RUI
                     return false;
             }
 
+            // Идем с конца (последние отрисованные дети - сверху)
             for (int i = element.Children.Count - 1; i >= 0; i--)
             {
                 HitTest(element.Children.ElementAt(i), point, results);
@@ -177,23 +159,21 @@ namespace REDIZIT.RUI
 
         private void ProcessHover(List<CanvasElement> hits)
         {
-            // Находим самый верхний элемент, у которого есть обработчик Hover (например, Button)
             CanvasElement topInteractiveElement = null;
-
             foreach (CanvasElement hit in hits)
             {
-	            foreach (CanvasComponent comp in hit.Components)
-	            {
-		            if (comp is IPointerEnterHandler)
-		            {
-			            topInteractiveElement = hit;
-			            break;
-		            }
-	            }
-	            if (topInteractiveElement != null) break;
+                foreach (CanvasComponent comp in hit.Components)
+                {
+                    if (comp is IPointerEnterHandler)
+                    {
+                        topInteractiveElement = hit;
+                        break;
+                    }
+                }
+                if (topInteractiveElement != null) break;
             }
 
-            // Снимаем Hover со всех элементов, кроме самого верхнего
+            // Exit
             for (int i = hoveredElements.Count - 1; i >= 0; i--)
             {
                 var el = hoveredElements[i];
@@ -201,27 +181,16 @@ namespace REDIZIT.RUI
                 {
                     hoveredElements.RemoveAt(i);
                     foreach (CanvasComponent comp in el.Components)
-                    {
-	                    if (comp is IPointerExitHandler handler)
-	                    {
-		                    handler.OnPointerExit();
-	                    }
-                    }
+                        if (comp is IPointerExitHandler handler) handler.OnPointerExit();
                 }
             }
 
-            // Навешиваем Hover только на самый верхний интерактивный элемент
+            // Enter
             if (topInteractiveElement != null && !hoveredElements.Contains(topInteractiveElement))
             {
                 hoveredElements.Add(topInteractiveElement);
-                
                 foreach (CanvasComponent comp in topInteractiveElement.Components)
-                {
-	                if (comp is IPointerEnterHandler handler)
-	                {
-		                handler.OnPointerEnter();
-	                }
-                }
+                    if (comp is IPointerEnterHandler handler) handler.OnPointerEnter();
             }
         }
     }

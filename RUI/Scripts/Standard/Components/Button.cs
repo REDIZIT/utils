@@ -53,7 +53,6 @@ namespace REDIZIT.RUI
 
             recognizer.onDown = () =>
             {
-	            Debug.Log("On down");
                 isPressed = true;
                 ApplyVisualState();
             };
@@ -66,7 +65,6 @@ namespace REDIZIT.RUI
 
             recognizer.onTap = () =>
             {
-	            Debug.Log("On tap");
                 isPressed = false;
                 ApplyVisualState();
                 onClick?.Invoke();
