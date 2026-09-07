@@ -19,7 +19,11 @@ namespace REDIZIT.RUI
 	        int crossIndex = 1 - forwardIndex;
 
 	        float2 containerSize = Transform.size;
-	        if (fitContent) containerSize[crossIndex] = constraints.GetMax(crossIndex)!.Value;
+	        if (fitContent)
+	        {
+		        float? crossConstraint = constraints.GetMax(crossIndex);
+		        if (crossConstraint.HasValue) containerSize[crossIndex] = crossConstraint.Value;
+	        }
 	        
 	        float2 paddingSum = new(padding.x + padding.z, padding.y + padding.w);
 	        
@@ -75,17 +79,6 @@ namespace REDIZIT.RUI
 
 	        Transform.size[forwardIndex] = paddingSum[forwardIndex] + totalForwardSize;
 	        Transform.size[crossIndex] = containerSize[crossIndex];
-	        
-	        Debug.Log($"Stack debug pos: {Transform.pos}");
-
-	        // if (direction == StackDirection.Positive)
-	        // {
-		       //  Transform.pos[forwardIndex] = 0;
-	        // }
-	        // else
-	        // {
-		       //  Transform.pos[forwardIndex] = Element.parent.transform.size[forwardIndex] - Transform.size[forwardIndex];
-	        // }
         }
     }
 }

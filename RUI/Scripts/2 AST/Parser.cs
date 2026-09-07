@@ -45,22 +45,14 @@ namespace REDIZIT.RUI
 		        SkipTerminators();
 		    }
 
-		    string composerType = null;
+		    string key = null;
 		    if (Check<Token_Identifier>())
 		    {
-		        composerType = Consume<Token_Identifier>().name;
-		    }
-
-		    string key = null;
-		    if (Check<Token_Hash>())
-		    {
-		        Consume<Token_Hash>();
-		        key = Consume<Token_Identifier>("Ожидался ID").name;
+			    key = Consume<Token_Identifier>().name;
 		    }
 
 		    Node_Element element = new Node_Element { 
-		        key = key, 
-		        composerType = composerType, 
+		        key = key,
 		        isTemplate = isTemplate 
 		    };
 

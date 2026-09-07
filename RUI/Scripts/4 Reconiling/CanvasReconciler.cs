@@ -24,36 +24,73 @@ namespace REDIZIT.RUI
 	        element.service = service;
 	        element.reconciler = this;
 	        
-            // if (node.composerType != null && service.module.composerTypes.TryGetValue(node.composerType, out Type cType))
-            // {
-            //     if (element.composer == null || element.composer.GetType() != cType)
-            //     {
-            //         element.composer = (IComposer)Activator.CreateInstance(cType);
-            //         cType.GetField("e")?.SetValue(element.composer, element);
-            //     }
-            // }
-
-            for (int i = 0; i < node.properties.Count; i++)
-            {
-                var prop = node.properties[i];
-                if (prop.name.Equals("enabled", StringComparison.OrdinalIgnoreCase) ||
-                    prop.name.Equals("isenabled", StringComparison.OrdinalIgnoreCase))
-                {
-                    object val = ConvertValue(prop.value, typeof(bool));
-                    if (val is bool b) element.isEnabled = b;
-                    continue;
-                }
-
-                ApplyTransformProperty(element, prop.name, prop.value);
-
-                // if (!ApplyTransformProperty(element, prop.name, prop.value))
-                // {
-                //     ApplyComposerProperty(element.composer, prop);
-                // }
-            }
-
+	        foreach (Node_Property prop in node.properties)
+	        {
+		        ApplyElementProperty(element, prop);
+	        }
+	        
             ReconcileChildren(element, node.children);
             ReconcileComponents(element, node.components);
+        }
+
+        private void ApplyElementProperty(CanvasElement e, Node_Property prop)
+        {
+	        CanvasTransform t = e.transform;
+	        Node_Expression expr = prop.value;
+
+	        switch (prop.name)
+	        {
+		        case "isEnabled":
+			        e.isEnabled = EvaluateValue<bool>(expr);
+			        break;
+		        
+		        case "size":
+			        if (expr is Node_TupleLiteral tuple && tuple.elements.Count >= 2)
+			        {
+				        t.size.x = ParseDimension(tuple.elements[0]);
+				        t.size.y = ParseDimension(tuple.elements[1]);
+			        }
+			        else
+			        {
+				        float dim = ParseDimension(expr);
+				        t.size.x = dim;
+				        t.size.y = dim;
+			        }
+			        break;
+		        
+		        case "w":
+		        case "width": 
+			        t.size.x = ParseDimension(expr);
+					break;
+		        
+		        case "h":
+		        case "height":
+			        t.size.y = ParseDimension(expr);
+			        break;
+		        
+		        case "pos": 
+			        t.pos = EvaluateValue<float2>(expr); 
+			        break;
+		        
+		        case "x":
+			        t.pos.x = EvaluateValue<float>(expr);
+			        break;
+		        
+		        case "y":
+			        t.pos.y = EvaluateValue<float>(expr);
+			        break;
+		        
+		        case "angle":
+			        t.angle = EvaluateValue<float>(expr);
+			        break;
+	            
+		        case "layer":
+			        e.layerOffset = EvaluateValue<int>(expr);
+			        break;
+	            
+		        default:
+			        throw new ResolveException($"Invalid element property '{prop.name}'");
+	        }
         }
 
         private void ReconcileComponents(CanvasElement element, List<Node_Component> nodes)
@@ -87,18 +124,19 @@ namespace REDIZIT.RUI
                 }
         
                 comp.id = node.id;
-                for (int p = 0; p < node.properties.Count; p++)
-                    ApplyComponentProperty(comp, node.properties[p]);
+                foreach (Node_Property t in node.properties)
+                {
+	                ApplyComponentProperty(comp, t);
+                }
             }
         
             if (newComponents != null)
             {
-                for (int i = 0; i < newComponents.Count; i++)
-                {
-                    var c = newComponents[i];
-                    WireFields(c, element);
-                    c.OnAttached();
-                }
+	            foreach (CanvasComponent c in newComponents)
+	            {
+		            WireFields(c, element);
+		            c.OnAttached();
+	            }
             }
         }
 
@@ -106,7 +144,7 @@ namespace REDIZIT.RUI
         {
             for (int i = 0; i < nodes.Count; i++)
             {
-                var node = nodes[i];
+                Node_Element node = nodes[i];
                 CanvasElement child = null;
 
                 if (!string.IsNullOrEmpty(node.key))
@@ -155,31 +193,11 @@ namespace REDIZIT.RUI
             if (member == null) return;
 
             Type targetType = member is PropertyInfo p ? p.PropertyType : ((FieldInfo)member).FieldType;
-            object rawVal = ConvertValue(prop.value, targetType);
-            object finalVal = CastValue(rawVal, targetType);
+            
+            object value = EvaluateValue(prop.value, targetType);
 
-            if (finalVal != null)
-            {
-                if (member is PropertyInfo p2) p2.SetValue(comp, finalVal);
-                else ((FieldInfo)member).SetValue(comp, finalVal);
-            }
-        }
-
-        private void ApplyComposerProperty(IComposer composer, Node_Property prop)
-        {
-            if (composer == null) return;
-            MemberInfo member = TypeMetadataCache.GetSettableMember(composer.GetType(), prop.name);
-            if (member == null) return;
-
-            Type targetType = member is PropertyInfo p ? p.PropertyType : ((FieldInfo)member).FieldType;
-            object rawVal = ConvertValue(prop.value, targetType);
-            object finalVal = CastValue(rawVal, targetType);
-
-            if (finalVal != null)
-            {
-                if (member is PropertyInfo p2) p2.SetValue(composer, finalVal);
-                else ((FieldInfo)member).SetValue(composer, finalVal);
-            }
+            if (member is PropertyInfo p2) p2.SetValue(comp, value);
+            else ((FieldInfo)member).SetValue(comp, value);
         }
 
         public void PostProcessBindings(CanvasElement root)
@@ -272,93 +290,68 @@ namespace REDIZIT.RUI
             return null;
         }
 
-        private bool ApplyTransformProperty(CanvasElement e, string name, Node_Expression expr)
+        private T EvaluateValue<T>(Node_Expression expr)
         {
-	        CanvasTransform t = e.transform;
-
-	        switch (name.ToLower())
-	        {
-	            case "size":
-	                if (expr is Node_TupleLiteral tuple && tuple.elements.Count >= 2)
-	                {
-	                    t.size.x = ParseDimension(tuple.elements[0]);
-	                    t.size.y = ParseDimension(tuple.elements[1]);
-	                }
-	                else
-	                {
-	                    float dim = ParseDimension(expr);
-	                    t.size.x = dim;
-	                    t.size.y = dim;
-	                }
-	                return true;
-	            case "w": case "width": t.size.x = ParseDimension(expr); return true;
-	            case "h": case "height": t.size.y = ParseDimension(expr); return true;
-	            case "pos": case "localpos": t.pos = (float2)CastValue(ConvertValue(expr, typeof(float2)), typeof(float2)); return true;
-	            case "x": t.pos.x = (float)CastValue(ConvertValue(expr, typeof(float)), typeof(float)); return true;
-	            case "y": t.pos.y = (float)CastValue(ConvertValue(expr, typeof(float)), typeof(float)); return true;
-	            case "angle": case "rot": t.angle = (float)CastValue(ConvertValue(expr, typeof(float)), typeof(float)); return true;
-	            
-	            case "layer":
-	            case "layeroffset":
-	            case "order":
-	             // Используем CastValue(..., typeof(int)), так как layerOffset - это int
-	             e.layerOffset = (int)CastValue(ConvertValue(expr, typeof(int)), typeof(int));
-	             return true;
-	            
-	            default: return false;
-	        }
+	        return (T)EvaluateValue(expr, typeof(T));
         }
-
-        private object ConvertValue(Node_Expression expr, Type target)
+        
+        private object EvaluateValue(Node_Expression expr, Type target)
         {
-            if (expr is Node_NumberLiteral n) return n.value;
-            if (expr is Node_StringLiteral s)
+	        // Debug.Log($"{expr} for {target}");
+	        
+	        if (expr is Node_NumberLiteral numberLiteral)
+	        {
+		        if (target == typeof(int)) return (int)numberLiteral.value;
+		        if (target == typeof(float2)) return new float2(numberLiteral.value);
+		        if (target == typeof(float3)) return new float3(numberLiteral.value);
+		        if (target == typeof(float4)) return new float4(numberLiteral.value);
+		        
+		        return numberLiteral.value;
+	        }
+	        
+            if (expr is Node_StringLiteral stringLiteral)
             {
-                if (target == typeof(Sprite)) return service.assetDatabase.GetSprite(s.value);
-                if (target.IsEnum) return Enum.Parse(target, s.value, true);
-                return s.value;
+	            if (target == typeof(Sprite)) return service.assetDatabase.GetSprite(stringLiteral.value);
+                return stringLiteral.value;
             }
-            if (expr is Node_BooleanLiteral b) return b.value;
-            if (expr is Node_ColorLiteral c)
+
+            if (expr is Node_BooleanLiteral boolLiteral)
             {
-                ColorUtility.TryParseHtmlString(c.hex, out Color col);
+	            return boolLiteral.value;
+            }
+
+            if (expr is Node_ColorLiteral colorLiteral)
+            {
+                ColorUtility.TryParseHtmlString(colorLiteral.hex, out Color col);
                 return QualitySettings.activeColorSpace == ColorSpace.Linear ? col.linear : col;
             }
-            if (expr is Node_IdentifierReference id)
+            
+            if (expr is Node_IdentifierReference ident)
             {
-                if (id.name == "auto") return 0f;
-                if (id.name == "fill") return float.PositiveInfinity;
-                if (target.IsEnum) return Enum.Parse(target, id.name, true);
-                if (target == typeof(Sprite)) return service.assetDatabase.GetSprite(id.name);
-                return id.name;
+                if (target.IsEnum) return Enum.Parse(target, ident.name, true);
+                return ident.name;
             }
-            if (expr is Node_TupleLiteral t)
+            
+            if (expr is Node_TupleLiteral tuple)
             {
-                if (target == typeof(float2))
-                    return new float2((float)CastValue(ConvertValue(t.elements[0], typeof(float)), typeof(float)), (float)CastValue(ConvertValue(t.elements[1], typeof(float)), typeof(float)));
-                if (target == typeof(float4))
-                    return new float4((float)CastValue(ConvertValue(t.elements[0], typeof(float)), typeof(float)), (float)CastValue(ConvertValue(t.elements[1], typeof(float)), typeof(float)), (float)CastValue(ConvertValue(t.elements[2], typeof(float)), typeof(float)), (float)CastValue(ConvertValue(t.elements[3], typeof(float)), typeof(float)));
-            }
-            return null;
-        }
-
-        private object CastValue(object val, Type targetType)
-        {
-            if (val == null) return null;
-            Type valType = val.GetType();
-            if (targetType.IsAssignableFrom(valType)) return val;
-
-            if (val is float f)
-            {
-                if (targetType == typeof(float2)) return new float2(f, f);
-                if (targetType == typeof(float4)) return new float4(f, f, f, f);
-                if (targetType == typeof(int)) return (int)f;
-                if (targetType == typeof(double)) return (double)f;
-                if (targetType == typeof(byte)) return (byte)f;
+	            if (target == typeof(float2))
+	            {
+		            return new float2(
+			            EvaluateValue<float>(tuple.elements[0]),
+			            EvaluateValue<float>(tuple.elements[1]));
+	            }
+	            
+	            if (target == typeof(float4))
+	            {
+		            return new float4(
+			            EvaluateValue<float>(tuple.elements[0]),
+			            EvaluateValue<float>(tuple.elements[1]), 
+			            EvaluateValue<float>(tuple.elements[2]),  
+			            EvaluateValue<float>(tuple.elements[3]));
+	            }
             }
 
-            try { return Convert.ChangeType(val, targetType, System.Globalization.CultureInfo.InvariantCulture); }
-            catch { return null; }
+            throw new ResolveException($"Invalid expression '{expr?.GetType().Name}' for target type '{target?.Name}'");
         }
 
         private static float ParseDimension(Node_Expression expr)

@@ -21,7 +21,7 @@ namespace REDIZIT.RUI
 
     public class Node_Root : Node
     {
-        public List<Node_Element> elements = new List<Node_Element>();
+        public List<Node_Element> elements = new();
 
         public override IEnumerable<Node> EnumerateChildren()
         {
@@ -29,16 +29,14 @@ namespace REDIZIT.RUI
         }
     }
 
-    // Узел CanvasElement (блок { ... })
     public class Node_Element : Node
     {
 	    public string key;
-	    public string composerType;
-	    public bool isTemplate = false; // Флаг: является ли этот узел шаблоном
+	    public bool isTemplate;
     
-	    public List<Node_Property> properties = new List<Node_Property>();
-	    public List<Node_Component> components = new List<Node_Component>();
-	    public List<Node_Element> children = new List<Node_Element>();
+	    public List<Node_Property> properties = new();
+	    public List<Node_Component> components = new();
+	    public List<Node_Element> children = new();
 
 	    public override IEnumerable<Node> EnumerateChildren()
 	    {
@@ -48,12 +46,11 @@ namespace REDIZIT.RUI
 	    }
     }
 
-    // Узел компонента (Type#id: { ... } или инлайн)
     public class Node_Component : Node
     {
-        public string typeName; // Image, Button, Label
-        public string id;       // Опциональный id (Button#myBtn)
-        public List<Node_Property> properties = new List<Node_Property>();
+        public string typeName;
+        public string id;
+        public List<Node_Property> properties = new();
 
         public override IEnumerable<Node> EnumerateChildren()
         {
@@ -61,7 +58,6 @@ namespace REDIZIT.RUI
         }
     }
 
-    // Свойство: key = value
     public class Node_Property : Node
     {
         public string name;
