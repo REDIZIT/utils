@@ -109,6 +109,9 @@ namespace REDIZIT.RUI
             ctx.SetLayer(sprite == null ? CanvasGenerationContext.Layer.Background : CanvasGenerationContext.Layer.Content);
             ctx.SetMaterial(targetMat);
             Matrix4x4 localToRoot = Element.LocalToRoot;
+
+            float minSide = math.cmin(totalSize);
+            float4 clampedRadius = math.min(borderRadius, minSide / 2f);
             
             if (mode == ImageMode.Simple)
             {
@@ -119,7 +122,7 @@ namespace REDIZIT.RUI
                     uvRect = new float4(outer.x, outer.y, outer.z, outer.w);
                 }
 
-                ctx.AppendQuad(totalSize, localToRoot, color, borderRadius, uvRect);
+                ctx.AppendQuad(totalSize, localToRoot, color, clampedRadius, uvRect);
             }
             else if (mode == ImageMode.Tiling)
             {
@@ -147,7 +150,7 @@ namespace REDIZIT.RUI
                 else
                 {
                     // Без текстуры тайлинг цвета неотличим от 1 квада
-                    ctx.AppendQuad(totalSize, localToRoot, color, borderRadius);
+                    ctx.AppendQuad(totalSize, localToRoot, color, clampedRadius);
                     return;
                 }
 

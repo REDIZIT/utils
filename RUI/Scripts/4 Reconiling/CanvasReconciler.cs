@@ -200,11 +200,30 @@ namespace REDIZIT.RUI
         private void ApplyComponentProperty(CanvasComponent comp, Node_Property prop)
         {
             MemberInfo member = TypeMetadataCache.GetSettableMember(comp.GetType(), prop.name);
-            if (member == null) return;
+            if (member == null)
+            {
+	            throw new WireException($"Component '{comp}' has no settable member for property '{prop.name}'");
+            }
 
             Type targetType = member is PropertyInfo p ? p.PropertyType : ((FieldInfo)member).FieldType;
-            
-            object value = EvaluateValue(prop.value, targetType);
+
+            object value;
+            if (targetType.IsInheritedFrom(typeof(CanvasComponent)))
+            {
+	            if (TryFindComponent(comp.Element, targetType, prop.name, out CanvasComponent component))
+	            {
+		            value = component;
+		            Debug.Log($"Component found '{component.id}'");
+	            }
+	            else
+	            {
+		            throw new WireException($"Component {targetType} '{prop.name}' not found for {comp} at or inside element '{comp.Element.key}'");
+	            }
+            }
+            else
+            {
+	            value = EvaluateValue(prop.value, targetType);
+            }
 
             if (member is PropertyInfo p2) p2.SetValue(comp, value);
             else ((FieldInfo)member).SetValue(comp, value);
@@ -222,7 +241,7 @@ namespace REDIZIT.RUI
 
             for (int i = 0; i < fields.Length; i++)
             {
-                ref var fInfo = ref fields[i];
+                ref TypeMetadataCache.WireFieldInfo fInfo = ref fields[i];
                 object value = null;
 
                 if (fInfo.isComponent)
@@ -253,6 +272,16 @@ namespace REDIZIT.RUI
             }
         }
 
+        private bool TryFindComponent(CanvasElement element, Type componentType, string componentName, out CanvasComponent component)
+        {
+	        component = FindComponentByID(element, componentType, componentName);
+	        if (component != null) return true;
+
+	        component = FindComponentByType(element, componentType);
+	        if (component != null) return true;
+
+	        return false;
+        }
         
         private CanvasComponent FindComponentByID(CanvasElement e, Type t, string id)
         {
@@ -307,8 +336,6 @@ namespace REDIZIT.RUI
         
         private object EvaluateValue(Node_Expression expr, Type target)
         {
-	        // Debug.Log($"{expr} for {target}");
-	        
 	        if (expr is Node_NumberLiteral numberLiteral)
 	        {
 		        if (target == typeof(int)) return (int)numberLiteral.value;
@@ -353,11 +380,24 @@ namespace REDIZIT.RUI
 	            
 	            if (target == typeof(float4))
 	            {
-		            return new float4(
-			            EvaluateValue<float>(tuple.elements[0]),
-			            EvaluateValue<float>(tuple.elements[1]), 
-			            EvaluateValue<float>(tuple.elements[2]),  
-			            EvaluateValue<float>(tuple.elements[3]));
+		            if (tuple.elements.Count == 2)
+		            {
+			            float xz = EvaluateValue<float>(tuple.elements[0]);
+			            float yw = EvaluateValue<float>(tuple.elements[1]);
+			            return new float4(xz, yw, xz, yw);
+		            }
+		            else if (tuple.elements.Count == 4)
+		            {
+			            return new float4(
+				            EvaluateValue<float>(tuple.elements[0]),
+				            EvaluateValue<float>(tuple.elements[1]), 
+				            EvaluateValue<float>(tuple.elements[2]),  
+				            EvaluateValue<float>(tuple.elements[3]));
+		            }
+		            else
+		            {
+			            throw new ResolveException($"Invalid float4 tuple count = {tuple.elements.Count}");
+		            }
 	            }
             }
 

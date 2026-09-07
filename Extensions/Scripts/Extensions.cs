@@ -25,4 +25,10 @@ public static class CSharpExtensions
 	{
 		return interfaceType.IsAssignableFrom(type);
 	}
+
+	public static bool IsInheritedFrom(this Type childType, Type parentType)
+	{
+		if (parentType == null || childType == null) return false;
+		return parentType.IsAssignableFrom(childType);
+	}
 }

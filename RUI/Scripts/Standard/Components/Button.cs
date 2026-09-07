@@ -7,8 +7,8 @@ namespace REDIZIT.RUI
     {
         private Image internalTargetGraphic;
         private Color internalNormalColor = Color.white;
-        private Color internalHoverColor = new Color(0.85f, 0.85f, 0.85f, 1f);
-        private Color internalPressedColor = new Color(0.6f, 0.6f, 0.6f, 1f);
+        private Color internalHoverColor = new(0.85f, 0.85f, 0.85f, 1f);
+        private Color internalPressedColor = new(0.6f, 0.6f, 0.6f, 1f);
 
         public Action onClick;
         public Action onRightClick;
@@ -16,7 +16,7 @@ namespace REDIZIT.RUI
         public bool isHovered;
         public bool isPressed;
 
-        private readonly TapGestureRecognizer recognizer = new TapGestureRecognizer();
+        private readonly TapGestureRecognizer recognizer = new();
 
         public Image targetGraphic
         {
