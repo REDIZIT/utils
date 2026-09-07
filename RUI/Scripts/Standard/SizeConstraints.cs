@@ -28,13 +28,27 @@ namespace REDIZIT.RUI
 		public float? GetMax(int index) => index == 0 ? maxX : maxY;
 		public float? GetMin(int index) => index == 0 ? minX : minY;
 
-		public void SetMax(int index, float v)
+		public void ClampMax(int index, float v)
+		{
+			if (index == 0)
+			{
+				if (maxX.HasValue) maxX = math.min(maxX.Value, v);
+				else maxX = v;
+			}
+			else
+			{
+				if (maxY.HasValue) maxY = math.min(maxY.Value, v);
+				else maxY = v;
+			}
+		}
+
+		public void SetMax(int index, float? v)
 		{
 			if (index == 0) maxX = v;
 			else maxY = v;
 		}
 		
-		public void SetMin(int index, float v)
+		public void SetMin(int index, float? v)
 		{
 			if (index == 0) minX = v;
 			else minY = v;
@@ -55,7 +69,12 @@ namespace REDIZIT.RUI
 			if (minY.HasValue && y < minY.Value) y = minY.Value;
 			if (maxY.HasValue && y > maxY.Value) y = maxY.Value;
 
-			return new float2(x, y);
+			return new(x, y);
+		}
+
+		public override string ToString()
+		{
+			return $"(min: ({minX?.ToString() ?? "none"}, {minY?.ToString() ?? "none"}), max: ({maxX?.ToString() ?? "none"}, {maxY?.ToString() ?? "none"}))";
 		}
 	}
 }

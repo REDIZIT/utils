@@ -6,7 +6,7 @@ namespace REDIZIT.RUI
 	public class CanvasTransform
 	{
 		public float2 pos = 0;
-		public float2 size = 100;
+		public float2 size = 0;
 		public float angle = 0f;
 		public float2 scale = 1;
 		

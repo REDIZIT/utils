@@ -82,7 +82,16 @@ namespace REDIZIT.RUI
 
         public void Solve(SizeConstraints constraints)
         {
-	        Element.SolveChildren();
+	        // Debug.Log($"Scroll constraints: {constraints}");
+
+	        SizeConstraints contentConstraints = new()
+	        {
+		        maxX = Transform.size.x,
+		        maxY = null
+	        };
+	        // Debug.Log($"Scroll content constraints: {contentConstraints}");
+	        
+	        Element.SolveChildren(contentConstraints);
 	        ApplyPosition();
         }
     }

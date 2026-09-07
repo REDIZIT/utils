@@ -131,16 +131,17 @@ namespace REDIZIT.RUI
 	        }
 	        else
 	        {
-		        SolveChildren();
+		        SolveChildren(constraints);
 	        }
         }
 
-        public void SolveChildren()
+        public void SolveChildren(SizeConstraints? containerConstraints = null)
         {
-	        SizeConstraints containerConstraints = new(transform.size);
+	        containerConstraints ??= new(transform.size);
+	        
 	        foreach (CanvasElement child in children)
 	        {
-		        child.Solve(containerConstraints);
+		        child.Solve(containerConstraints.Value);
 	        }
         }
         
