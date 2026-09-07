@@ -24,14 +24,14 @@ namespace REDIZIT.RUI
 	        element.service = service;
 	        element.reconciler = this;
 	        
-            if (node.composerType != null && service.module.composerTypes.TryGetValue(node.composerType, out Type cType))
-            {
-                if (element.composer == null || element.composer.GetType() != cType)
-                {
-                    element.composer = (IComposer)Activator.CreateInstance(cType);
-                    cType.GetField("e")?.SetValue(element.composer, element);
-                }
-            }
+            // if (node.composerType != null && service.module.composerTypes.TryGetValue(node.composerType, out Type cType))
+            // {
+            //     if (element.composer == null || element.composer.GetType() != cType)
+            //     {
+            //         element.composer = (IComposer)Activator.CreateInstance(cType);
+            //         cType.GetField("e")?.SetValue(element.composer, element);
+            //     }
+            // }
 
             for (int i = 0; i < node.properties.Count; i++)
             {
@@ -44,10 +44,12 @@ namespace REDIZIT.RUI
                     continue;
                 }
 
-                if (!ApplyTransformProperty(element, prop.name, prop.value))
-                {
-                    ApplyComposerProperty(element.composer, prop);
-                }
+                ApplyTransformProperty(element, prop.name, prop.value);
+
+                // if (!ApplyTransformProperty(element, prop.name, prop.value))
+                // {
+                //     ApplyComposerProperty(element.composer, prop);
+                // }
             }
 
             ReconcileChildren(element, node.children);
@@ -272,41 +274,39 @@ namespace REDIZIT.RUI
 
         private bool ApplyTransformProperty(CanvasElement e, string name, Node_Expression expr)
         {
-	        return false;
-	        
-	        // CanvasTransform t = e.transform;
+	        CanvasTransform t = e.transform;
 
-	        // switch (name.ToLower())
-	        // {
-	        //     case "size":
-	        //         if (expr is Node_TupleLiteral tuple && tuple.elements.Count >= 2)
-	        //         {
-	        //             t.width = ParseDimension(tuple.elements[0]);
-	        //             t.height = ParseDimension(tuple.elements[1]);
-	        //         }
-	        //         else
-	        //         {
-	        //             float? dim = ParseDimension(expr);
-	        //             t.width = dim;
-	        //             t.height = dim;
-	        //         }
-	        //         return true;
-	        //     case "w": case "width": t.width = ParseDimension(expr); return true;
-	        //     case "h": case "height": t.height = ParseDimension(expr); return true;
-	        //     case "pos": case "localpos": t.localPos = (float2)CastValue(ConvertValue(expr, typeof(float2)), typeof(float2)); return true;
-	        //     case "x": t.localPos.x = (float)CastValue(ConvertValue(expr, typeof(float)), typeof(float)); return true;
-	        //     case "y": t.localPos.y = (float)CastValue(ConvertValue(expr, typeof(float)), typeof(float)); return true;
-	        //     case "angle": case "rot": t.angle = (float)CastValue(ConvertValue(expr, typeof(float)), typeof(float)); return true;
-	        //     
-	        //     case "layer":
-	        //     case "layeroffset":
-	        //     case "order":
-	        //      // Используем CastValue(..., typeof(int)), так как layerOffset - это int
-	        //      e.layerOffset = (int)CastValue(ConvertValue(expr, typeof(int)), typeof(int));
-	        //      return true;
-	        //     
-	        //     default: return false;
-	        // }
+	        switch (name.ToLower())
+	        {
+	            case "size":
+	                if (expr is Node_TupleLiteral tuple && tuple.elements.Count >= 2)
+	                {
+	                    t.size.x = ParseDimension(tuple.elements[0]);
+	                    t.size.y = ParseDimension(tuple.elements[1]);
+	                }
+	                else
+	                {
+	                    float dim = ParseDimension(expr);
+	                    t.size.x = dim;
+	                    t.size.y = dim;
+	                }
+	                return true;
+	            case "w": case "width": t.size.x = ParseDimension(expr); return true;
+	            case "h": case "height": t.size.y = ParseDimension(expr); return true;
+	            case "pos": case "localpos": t.pos = (float2)CastValue(ConvertValue(expr, typeof(float2)), typeof(float2)); return true;
+	            case "x": t.pos.x = (float)CastValue(ConvertValue(expr, typeof(float)), typeof(float)); return true;
+	            case "y": t.pos.y = (float)CastValue(ConvertValue(expr, typeof(float)), typeof(float)); return true;
+	            case "angle": case "rot": t.angle = (float)CastValue(ConvertValue(expr, typeof(float)), typeof(float)); return true;
+	            
+	            case "layer":
+	            case "layeroffset":
+	            case "order":
+	             // Используем CastValue(..., typeof(int)), так как layerOffset - это int
+	             e.layerOffset = (int)CastValue(ConvertValue(expr, typeof(int)), typeof(int));
+	             return true;
+	            
+	            default: return false;
+	        }
         }
 
         private object ConvertValue(Node_Expression expr, Type target)
@@ -361,11 +361,10 @@ namespace REDIZIT.RUI
             catch { return null; }
         }
 
-        private static float? ParseDimension(Node_Expression expr)
+        private static float ParseDimension(Node_Expression expr)
         {
             if (expr is Node_NumberLiteral num) return num.value;
-            if (expr is Node_IdentifierReference id && id.name.Equals("auto", StringComparison.OrdinalIgnoreCase)) return null;
-            return null;
+            throw new WireException($"Invalid dimension type: {expr.GetType().Name}");
         }
     }
 }

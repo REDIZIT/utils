@@ -2,6 +2,6 @@
 {
 	public interface ILayoutSolver
 	{
-		ResolvedTransform Solve(SolveContext ctx);
+		void Solve(SizeConstraints constraints);
 	}
 }

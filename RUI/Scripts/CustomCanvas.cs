@@ -114,27 +114,27 @@ namespace REDIZIT.RUI
 
 	        if (root == null) return;
 
+	        // 1. Update pass
 	        if (Application.isPlaying)
 	        {
-		        // inputManager?.ProcessInput(root);
+		        inputManager?.ProcessInput(root);
 		        root.UpdateTree();
 	        }
 
 	        if (isDirty)
 	        {
-		        root.ResetTransformsRecursive();
-
+		        // 2. Layout pass
 		        float2 screenSize = new(Screen.width, Screen.height);
 		        SizeConstraints constraints = new(0, 0, screenSize.x, screenSize.y);
+		        root.Solve(constraints);
 		        
-		        root.Measure(constraints);
-		        root.Arrange(new(0, screenSize));
-		        
-		        root.CheckResolvedRecursive();
-
+		        // 3. Render pass
 		        context.Clear();
 		        root.RenderTree(context);
 		        context.FinalizeBatches();
+		        
+		        
+		        
 		        isDirty = false;
 	        }
         }

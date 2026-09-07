@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace REDIZIT.RUI
 {
-    public class ScrollView : CanvasComponent, IPointerScrollHandler, IPointerDownHandler, IPointerMoveHandler, IPointerUpHandler
+    public class ScrollView : CanvasComponent, IPointerScrollHandler, IPointerDownHandler, IPointerMoveHandler, IPointerUpHandler, ILayoutSolver
     {
         public float speed = 48f;
         public float scrollPosition = 0f;
@@ -21,12 +21,6 @@ namespace REDIZIT.RUI
             {
                 AddScroll(delta.y);
             };
-        }
-
-        // Вызывается САМИМ ДВИЖКОМ ровно в момент, когда размеры контента пересчитаны!
-        public override void OnLayoutComplete()
-        {
-            ApplyPosition();
         }
 
         public void OnPointerScroll(PointerScrollEvent e)
@@ -51,36 +45,45 @@ namespace REDIZIT.RUI
 
         private void AddScroll(float delta)
         {
-            // if (contentElement == null && Element.Children.Count > 0)
-            //     contentElement = Element.Children.First();
-            //
-            // if (contentElement == null) return;
-            //
-            // float viewportHeight = Transform.size.y;
-            // float contentHeight = contentElement.transform.calculatedSize.y;
-            // float maxScroll = Mathf.Max(0f, contentHeight - viewportHeight);
-            //
-            // scrollPosition = Mathf.Clamp(scrollPosition + delta, 0f, maxScroll);
-            // ApplyPosition();
+            if (contentElement == null && Element.Children.Count > 0)
+                contentElement = Element.Children.First();
+            
+            if (contentElement == null) return;
+            
+            
+            float viewportHeight = Transform.size.y;
+            float contentHeight = contentElement.transform.size.y;
+            float maxScroll = Mathf.Max(0f, contentHeight - viewportHeight);
+            
+            scrollPosition = Mathf.Clamp(scrollPosition + delta, 0f, maxScroll);
+            ApplyPosition();
+            
+            MarkDirty();
         }
 
         public void ApplyPosition()
         {
-            // if (contentElement == null && Element.Children.Count > 0)
-            //     contentElement = Element.Children.First();
-            //
-            // if (contentElement == null) return;
-            //
-            // float viewportHeight = Transform.size.y;
-            // float contentHeight = contentElement.transform.calculatedSize.y;
-            // float maxScroll = Mathf.Max(0f, contentHeight - viewportHeight);
-            // scrollPosition = Mathf.Clamp(scrollPosition, 0f, maxScroll);
-            //
-            // float targetY = (viewportHeight - contentHeight) + scrollPosition;
-            // if (Mathf.Abs(contentElement.transform.localPos.y - targetY) > 0.001f)
-            // {
-            //     contentElement.transform.localPos.y = targetY;
-            // }
+            if (contentElement == null && Element.Children.Count > 0)
+                contentElement = Element.Children.First();
+            
+            if (contentElement == null) return;
+            
+            float viewportHeight = Transform.size.y;
+            float contentHeight = contentElement.transform.size.y;
+            float maxScroll = Mathf.Max(0f, contentHeight - viewportHeight);
+            scrollPosition = Mathf.Clamp(scrollPosition, 0f, maxScroll);
+            
+            float targetY = (viewportHeight - contentHeight) + scrollPosition;
+            if (Mathf.Abs(contentElement.transform.pos.y - targetY) > 0.001f)
+            {
+                contentElement.transform.pos.y = targetY;
+            }
+        }
+
+        public void Solve(SizeConstraints constraints)
+        {
+	        Element.SolveChildren();
+	        ApplyPosition();
         }
     }
 }

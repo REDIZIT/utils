@@ -1,27 +1,21 @@
-﻿using Unity.Mathematics;
-
-namespace REDIZIT.RUI
+﻿namespace REDIZIT.RUI
 {
-	public class Fill_Composer : IComposer
+	public class Fill_LayoutSolver : CanvasComponent, ILayoutSolver
 	{
-		public CanvasElement e;
-	
-		public PreferredSize Measure(SizeConstraints c)
+		public void Solve(SizeConstraints constraints)
 		{
-			foreach (var child in e.Children)
+			foreach (CanvasElement child in Element.Children)
 			{
-				if (child.isEnabled) child.Measure(c);
+				child.Solve(constraints);
 			}
-
-			return new(c.maxX ?? 0, c.maxY ?? 0);
+			
+			Apply(Transform, constraints);
 		}
 
-		public void Arrange(float2 size)
+		public static void Apply(CanvasTransform transform, SizeConstraints constraints)
 		{
-			foreach (var child in e.Children)
-			{
-				child.Arrange(new(16, size - 16 * 2));
-			}
+			transform.pos = 0;
+			transform.size = new(constraints.maxX ?? 0, constraints.maxY ?? 0);
 		}
 	}
 }

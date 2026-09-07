@@ -1,68 +1,91 @@
-﻿using Unity.Mathematics;
+﻿using System.Linq;
+using Unity.Mathematics;
 using UnityEngine;
 
 namespace REDIZIT.RUI
 {
-    public class Stack_Composer : IComposer
+    public class Stack_LayoutSolver : CanvasComponent, ILayoutSolver
     {
-        public CanvasElement e;
-        public LayoutDirection direction = LayoutDirection.Vertical;
-
-        public PreferredSize Measure(SizeConstraints c)
-        {
-	        int forwardIndex = (int)direction;
-            int crossIndex = 1 - forwardIndex;
-
-            SizeConstraints childConstraints = new SizeConstraints
-            {
-	            maxX = forwardIndex == 0 ? null : c.maxX,
-	            maxY = forwardIndex == 1 ? null : c.maxY
-            };
-
-            float forwardAccum = 0;
-            float crossMax = 0;
-            
-            foreach (CanvasElement child in e.Children)
-            {
-	            PreferredSize childPreferredSize = child.Measure(childConstraints);
-	            Debug.Log($"stack child pref size: {childPreferredSize.size}");
-	            
-	            forwardAccum += childPreferredSize.size[forwardIndex];
-	            crossMax = math.max(crossMax, childPreferredSize.size[crossIndex]);
-            }
-
-            float2 desired = float2.zero;
-            desired[forwardIndex] = forwardAccum;
-            desired[crossIndex] = c.GetMax(crossIndex) ?? crossMax;
-            return new(desired);
-        }
+        public StackAxis axis = StackAxis.Vertical;
+        public StackDirection direction = StackDirection.Negative;
         
-        public void Arrange(float2 size)
+        public float4 padding;
+        public float spacing;
+        public bool fitContent = true;
+
+        public void Solve(SizeConstraints constraints)
         {
-	        Debug.Log($"Stack arrange: {size} for children ({e.Children.Count})");
-	        
-	        int forwardIndex = (int)direction;;
+	        int forwardIndex = (int)axis;
 	        int crossIndex = 1 - forwardIndex;
-	        float cursor = 0;
 
-	        foreach (CanvasElement child in e.Children)
+	        float2 containerSize = Transform.size;
+	        if (fitContent) containerSize[crossIndex] = constraints.GetMax(crossIndex)!.Value;
+	        
+	        float2 paddingSum = new(padding.x + padding.z, padding.y + padding.w);
+	        
+	        float paddingForwardStart = padding[forwardIndex * 2 + 0];
+	        float paddingForwardEnd = padding[forwardIndex * 2 + 1];
+	        float paddingCrossStart = padding[crossIndex * 2 + 0];
+	        float paddingCrossEnd = padding[crossIndex * 2 + 1];
+
+	        SizeConstraints childConstraints = new SizeConstraints();
+	        childConstraints.SetMax(crossIndex, containerSize[crossIndex]);
+
+
+	        //
+	        // Measure
+	        //
+	        float childrenTotalForwardSize = 0;
+	        foreach (CanvasElement child in Element.Children)
 	        {
-		        float childDesiredForward = child.preferredSize!.Value.size[forwardIndex];
-
-		        // Формируем трансформ на основе ПОСЧИТАННОГО в Measure размера:
-		        float2 childPos = float2.zero;
-		        childPos[forwardIndex] = cursor;
-		        childPos[crossIndex] = 0;
-
-		        float2 childSize = float2.zero;
-		        childSize[forwardIndex] = childDesiredForward;
-		        childSize[crossIndex] = size[crossIndex]; // растягиваем по поперечной оси
-
-		        // Выставляем ребенку и заставляем его выставить своих детей
-		        child.Arrange(new(childPos, childSize));
-
-		        cursor += childDesiredForward;
+		        child.Solve(childConstraints);
+		        childrenTotalForwardSize += child.transform.size[forwardIndex];
 	        }
+
+	        float totalSpacing = spacing * Mathf.Max(0, Element.Children.Count - 1);
+	        float totalForwardSize = childrenTotalForwardSize + totalSpacing;
+	        
+	        //
+	        // Placement
+	        //
+	        float cursor = direction == StackDirection.Positive ? 0 : totalForwardSize;
+	        float cursorSign = direction == StackDirection.Negative ? -1 : 1;
+	        
+	        cursor += paddingForwardStart;
+	        
+	        foreach (CanvasElement child in Element.Children)
+	        {
+		        float childForwardSize = child.transform.size[forwardIndex];
+		        if (direction == StackDirection.Negative)
+		        {
+			        child.transform.pos[forwardIndex] = cursor - childForwardSize;
+		        }
+		        else
+		        {
+			        child.transform.pos[forwardIndex] = cursor;
+		        }
+		        
+		        
+		        child.transform.pos[crossIndex] = paddingCrossStart;
+
+		        cursor += cursorSign * (childForwardSize + spacing);
+		        
+		        child.transform.size[crossIndex] = containerSize[crossIndex] - paddingSum[crossIndex];
+	        }
+
+	        Transform.size[forwardIndex] = paddingSum[forwardIndex] + totalForwardSize;
+	        Transform.size[crossIndex] = containerSize[crossIndex];
+	        
+	        Debug.Log($"Stack debug pos: {Transform.pos}");
+
+	        // if (direction == StackDirection.Positive)
+	        // {
+		       //  Transform.pos[forwardIndex] = 0;
+	        // }
+	        // else
+	        // {
+		       //  Transform.pos[forwardIndex] = Element.parent.transform.size[forwardIndex] - Transform.size[forwardIndex];
+	        // }
         }
     }
 }

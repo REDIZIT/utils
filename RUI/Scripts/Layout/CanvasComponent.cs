@@ -7,7 +7,8 @@ namespace REDIZIT.RUI
 		public string id;
 		public bool isEnabled = true;
 		public CanvasElement Element { get; internal set; }
-		public ResolvedTransform Transform => Element.layoutTransform!.Value;
+		public CanvasTransform Transform => Element.transform;
+		// public ResolvedTransform Transform => Element.layoutTransform!.Value;
 		
 		protected SubsContainer subs = new();
 

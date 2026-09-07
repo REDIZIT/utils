@@ -9,6 +9,14 @@ namespace REDIZIT.RUI
 		public float? maxX;
 		public float? maxY;
 
+		public SizeConstraints(float2 size)
+		{
+			minX = null;
+			minY = null;
+			maxX = size.x;
+			maxY = size.y;
+		}
+		
 		public SizeConstraints(float? minX, float? minY, float? maxX, float? maxY)
 		{
 			this.minX = minX;
@@ -19,6 +27,18 @@ namespace REDIZIT.RUI
 
 		public float? GetMax(int index) => index == 0 ? maxX : maxY;
 		public float? GetMin(int index) => index == 0 ? minX : minY;
+
+		public void SetMax(int index, float v)
+		{
+			if (index == 0) maxX = v;
+			else maxY = v;
+		}
+		
+		public void SetMin(int index, float v)
+		{
+			if (index == 0) minX = v;
+			else minY = v;
+		}
 
 		public PreferredSize Clamp(PreferredSize size)
 		{
@@ -37,15 +57,5 @@ namespace REDIZIT.RUI
 
 			return new float2(x, y);
 		}
-
-		// Хелперы:
-		public static SizeConstraints Loose(float? maxX = null, float? maxY = null)
-			=> new SizeConstraints(null, null, maxX, maxY);
-
-		public static SizeConstraints Tight(float x, float y)
-			=> new SizeConstraints(x, y, x, y);
-
-		public static SizeConstraints Tight(float2 size)
-			=> new SizeConstraints(size.x, size.y, size.x, size.y);
 	}
 }

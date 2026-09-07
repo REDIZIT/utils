@@ -10,95 +10,33 @@ namespace REDIZIT.RUI
     {
         public string key;
         public CanvasElement parent;
-        public IComposer composer;
+        public CanvasTransform transform = new();
         public int layerOffset = 0;
-
-        private bool internalIsEnabled = true;
-
-        public bool isEnabled
-        {
-            get => internalIsEnabled;
-            set
-            {
-                if (internalIsEnabled == value) return;
-                internalIsEnabled = value;
-                MarkDirty();
-            }
-        }
-        
-        public IReadOnlyCollection<CanvasElement> Children => children;
-        public IReadOnlyCollection<CanvasComponent> Components => components;
-
-        public PreferredSize? preferredSize;
-
-        public ResolvedTransform? layoutTransform;
-        public ResolvedTransform? renderTransform;
-
-        private readonly List<CanvasElement> children = new();
-        private readonly List<CanvasComponent> components = new();
 
         public Action onTreeDirty;
         
         public CanvasService service;
         public CanvasReconciler reconciler;
-
-        public void ResetTransforms()
+        
+        
+        private readonly List<CanvasElement> children = new();
+        private readonly List<CanvasComponent> components = new();
+        
+        private bool _isEnabled = true;
+        
+        public bool isEnabled
         {
-	        preferredSize = null;
-	        layoutTransform = null;
-	        renderTransform = null;
-        }
-
-        public void ResetTransformsRecursive()
-        {
-	        ResetTransforms();
-	        foreach (CanvasElement child in children) child.ResetTransformsRecursive();
-        }
-
-        public void ResolveTransform(ResolvedTransform t)
-        {
-	        if (layoutTransform != null || renderTransform != null)
+	        get => _isEnabled;
+	        set
 	        {
-		        throw new LayoutSolveException($"Transform of '{key}' already resolved. Multiple resolution is not allowed.");
+		        if (_isEnabled == value) return;
+		        _isEnabled = value;
+		        MarkDirty();
 	        }
-	        
-	        layoutTransform = t;
-	        renderTransform = t;
-        }
-
-        public void CheckResolvedRecursive()
-        {
-	        if (renderTransform == null) throw new LayoutSolveException($"Render transform of '{key}' is not resolved");
-	        if (preferredSize == null) throw new LayoutSolveException($"Preferred size of '{key}' is not resolved");
-	        foreach (CanvasElement child in children) child.CheckResolvedRecursive();
-        }
-
-        private PreferredSize MeasureSelf(SizeConstraints constraints)
-        {
-	        foreach (CanvasComponent comp in components)
-	        {
-		        if (comp is IMeasurable measurable)
-		        {
-			        return measurable.Measure(constraints);
-		        }
-	        }
-	        throw new LayoutSolveException($"No {nameof(IMeasurable)} component on element '{key}'");
         }
         
-        public PreferredSize Measure(SizeConstraints constraints)
-        {
-	        PreferredSize size = composer?.Measure(constraints) ?? MeasureSelf(constraints);
-	        preferredSize = constraints.Clamp(size);
-
-	        return preferredSize!.Value;
-        }
-
-        public void Arrange(ResolvedTransform transform)
-        {
-	        ResolveTransform(transform);
-	        
-	        composer?.Arrange(transform.size);
-        }
+        public IReadOnlyCollection<CanvasElement> Children => children;
+        public IReadOnlyCollection<CanvasComponent> Components => components;
 
         public void MarkDirty()
         {
@@ -122,13 +60,6 @@ namespace REDIZIT.RUI
         public void RemoveChildren(int startIndex, int count)
         {
 	        children.RemoveRange(startIndex, count);
-	        // for (int i = startIndex - count - 1; i >= startIndex; i--)
-	        // {
-		       //  CanvasElement child = children[i];
-		       //  child.parent = null;
-		       //  children.Remove(child);
-	        // }
-	        
 	        MarkDirty();
         }
         
@@ -177,12 +108,62 @@ namespace REDIZIT.RUI
         {
             get
             {
-                if (parent == null) return renderTransform!.Value.localToParent;
-                return parent.LocalToRoot * renderTransform!.Value.localToParent;
+                if (parent == null) return transform.LocalToParent;
+                return parent.LocalToRoot * transform.LocalToParent;
             }
         }
 
-        // Блокировка обновления неактивных элементов
+        public void Solve(SizeConstraints constraints)
+        {
+	        ILayoutSolver? solver = null;
+	        foreach (CanvasComponent comp in components)
+	        {
+		        if (comp is ILayoutSolver s)
+		        {
+			        solver = s;
+			        break;
+		        }
+	        }
+
+	        if (solver != null)
+	        {
+		        solver.Solve(constraints);
+	        }
+	        else
+	        {
+		        SolveChildren();
+	        }
+        }
+
+        public void SolveChildren()
+        {
+	        SizeConstraints containerConstraints = new(transform.size);
+	        foreach (CanvasElement child in children)
+	        {
+		        child.Solve(containerConstraints);
+	        }
+        }
+
+        public bool TryMeasure(SizeConstraints constraints, out PreferredSize preferredSize)
+        {
+	        foreach (CanvasComponent comp in components)
+	        {
+		        if (comp is IMeasurable m)
+		        {
+			        preferredSize = m.Measure(constraints);
+			        return true;
+		        }
+	        }
+	        
+	        foreach (CanvasElement child in children)
+	        {
+		        if (child.TryMeasure(constraints, out preferredSize)) return true;
+	        }
+
+	        preferredSize = default;
+	        return false;
+        }
+
         public void UpdateTree()
         {
             if (!isEnabled) return;
@@ -198,7 +179,6 @@ namespace REDIZIT.RUI
             }
         }
 
-        // Блокировка рендеринга неактивных элементов
         public void RenderTree(CanvasGenerationContext ctx)
         {
 	        if (!isEnabled) return;
@@ -231,10 +211,12 @@ namespace REDIZIT.RUI
         {
             Matrix4x4 m = LocalToRoot;
 
+            float2 size = transform.size;
+            
             Vector3 p0 = m.MultiplyPoint3x4(new(0, 0, 0));
-            Vector3 p1 = m.MultiplyPoint3x4(new(renderTransform!.Value.size.x, 0, 0));
-            Vector3 p2 = m.MultiplyPoint3x4(new(0, renderTransform!.Value.size.y, 0));
-            Vector3 p3 = m.MultiplyPoint3x4(new(renderTransform!.Value.size.x, renderTransform!.Value.size.y, 0));
+            Vector3 p1 = m.MultiplyPoint3x4(new(size.x, 0, 0));
+            Vector3 p2 = m.MultiplyPoint3x4(new(0, size.y, 0));
+            Vector3 p3 = m.MultiplyPoint3x4(new(size.x, size.y, 0));
 
             float minX = math.min(math.min(p0.x, p1.x), math.min(p2.x, p3.x));
             float minY = math.min(math.min(p0.y, p1.y), math.min(p2.y, p3.y));
@@ -242,6 +224,23 @@ namespace REDIZIT.RUI
             float maxY = math.max(math.max(p0.y, p1.y), math.max(p2.y, p3.y));
 
             return new Vector4(minX, minY, maxX, maxY);
+        }
+
+        public string GetPath()
+        {
+	        if (parent == null) return "<root>";
+
+	        string parentPath = parent.GetPath();
+
+	        if (key != null)
+	        {
+		        return $"{parentPath}/{key}";
+	        }
+	        else
+	        {
+		        int childIndex = parent.children.IndexOf(this);
+		        return $"{parentPath}/[{childIndex}]";
+	        }
         }
     }
 }
