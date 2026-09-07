@@ -28,8 +28,11 @@ namespace REDIZIT.RUI
         
         public IReadOnlyCollection<CanvasElement> Children => children;
         public IReadOnlyCollection<CanvasComponent> Components => components;
-        
-        public readonly CanvasTransform transform = new();
+
+        public PreferredSize? preferredSize;
+
+        public ResolvedTransform? layoutTransform;
+        public ResolvedTransform? renderTransform;
 
         private readonly List<CanvasElement> children = new();
         private readonly List<CanvasComponent> components = new();
@@ -39,9 +42,62 @@ namespace REDIZIT.RUI
         public CanvasService service;
         public CanvasReconciler reconciler;
 
-        public CanvasElement()
+        public void ResetTransforms()
         {
-            composer = new Fill_Composer() { e = this };
+	        preferredSize = null;
+	        layoutTransform = null;
+	        renderTransform = null;
+        }
+
+        public void ResetTransformsRecursive()
+        {
+	        ResetTransforms();
+	        foreach (CanvasElement child in children) child.ResetTransformsRecursive();
+        }
+
+        public void ResolveTransform(ResolvedTransform t)
+        {
+	        if (layoutTransform != null || renderTransform != null)
+	        {
+		        throw new LayoutSolveException($"Transform of '{key}' already resolved. Multiple resolution is not allowed.");
+	        }
+	        
+	        layoutTransform = t;
+	        renderTransform = t;
+        }
+
+        public void CheckResolvedRecursive()
+        {
+	        if (renderTransform == null) throw new LayoutSolveException($"Render transform of '{key}' is not resolved");
+	        if (preferredSize == null) throw new LayoutSolveException($"Preferred size of '{key}' is not resolved");
+	        foreach (CanvasElement child in children) child.CheckResolvedRecursive();
+        }
+
+        private PreferredSize MeasureSelf(SizeConstraints constraints)
+        {
+	        foreach (CanvasComponent comp in components)
+	        {
+		        if (comp is IMeasurable measurable)
+		        {
+			        return measurable.Measure(constraints);
+		        }
+	        }
+	        throw new LayoutSolveException($"No {nameof(IMeasurable)} component on element '{key}'");
+        }
+        
+        public PreferredSize Measure(SizeConstraints constraints)
+        {
+	        PreferredSize size = composer?.Measure(constraints) ?? MeasureSelf(constraints);
+	        preferredSize = constraints.Clamp(size);
+
+	        return preferredSize!.Value;
+        }
+
+        public void Arrange(ResolvedTransform transform)
+        {
+	        ResolveTransform(transform);
+	        
+	        composer?.Arrange(transform.size);
         }
 
         public void MarkDirty()
@@ -121,8 +177,8 @@ namespace REDIZIT.RUI
         {
             get
             {
-                if (parent == null) return transform.LocalMatrix;
-                return parent.LocalToRoot * transform.LocalMatrix;
+                if (parent == null) return renderTransform!.Value.localToParent;
+                return parent.LocalToRoot * renderTransform!.Value.localToParent;
             }
         }
 
@@ -171,40 +227,14 @@ namespace REDIZIT.RUI
 	        ctx.currentLayerOffset = previousOffset;
         }
 
-        public float2 SolveLayout(SizeConstraints constraints)
-        {
-	        if (!isEnabled) return float2.zero;
-
-	        // 1. Композер рассчитывает размеры элемента и расставляет детей
-	        float2 result = composer.Solve(constraints);
-
-	        // 2. Хук завершения верстки: компоненты (ScrollView, ползунки, тултипы)
-	        // получают доступ к 100% свежим размерам в этом же кадре!
-	        foreach (CanvasComponent comp in components)
-	        {
-		        if (comp.isEnabled) comp.OnLayoutComplete();
-	        }
-
-	        return result;
-        }
-
-        public float2 GetPreferredContentSize()
-        {
-            float2 contentSize = float2.zero;
-            for (int i = 0; i < components.Count; i++)
-                contentSize = math.max(contentSize, components[i].GetPreferredSize());
-            return contentSize;
-        }
-
-        // Расчет AABB с учетом поворота всех 4 углов
         public Vector4 GetScreenBounds()
         {
             Matrix4x4 m = LocalToRoot;
 
             Vector3 p0 = m.MultiplyPoint3x4(new(0, 0, 0));
-            Vector3 p1 = m.MultiplyPoint3x4(new(transform.calculatedSize.x, 0, 0));
-            Vector3 p2 = m.MultiplyPoint3x4(new(0, transform.calculatedSize.y, 0));
-            Vector3 p3 = m.MultiplyPoint3x4(new(transform.calculatedSize.x, transform.calculatedSize.y, 0));
+            Vector3 p1 = m.MultiplyPoint3x4(new(renderTransform!.Value.size.x, 0, 0));
+            Vector3 p2 = m.MultiplyPoint3x4(new(0, renderTransform!.Value.size.y, 0));
+            Vector3 p3 = m.MultiplyPoint3x4(new(renderTransform!.Value.size.x, renderTransform!.Value.size.y, 0));
 
             float minX = math.min(math.min(p0.x, p1.x), math.min(p2.x, p3.x));
             float minY = math.min(math.min(p0.y, p1.y), math.min(p2.y, p3.y));

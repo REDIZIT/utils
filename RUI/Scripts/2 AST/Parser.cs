@@ -45,7 +45,7 @@ namespace REDIZIT.RUI
 		        SkipTerminators();
 		    }
 
-		    string composerType = "Fill";
+		    string composerType = null;
 		    if (Check<Token_Identifier>())
 		    {
 		        composerType = Consume<Token_Identifier>().name;

@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -43,71 +44,72 @@ namespace REDIZIT.RUI
 
 		public void OpenSubmenu(Vector2 requestedPos, List<ContextMenuItem> items, int level, Vector4 parentBounds)
 		{
-			if (rootElement == null || items == null || items.Count == 0) return;
-
-			// Закрываем меню того же уровня или выше
-			CloseSubmenusAbove(level - 1);
-
-			if (!canvasService.module.templates.TryGetValue(typeof(ContextMenuComponent), out var template))
-			{
-				Debug.LogError("[RUI] Шаблон 'ContextMenu' не найден!");
-				return;
-			}
-
-			var menuElement = new CanvasElement
-			{
-				key = $"ContextMenu_Level_{level}",
-				parent = rootElement,
-				service = canvasService,
-				reconciler = reconciler,
-				// Каждый уровень меню получает +100 к слою отрисовки. 
-				// Этого с запасом хватит, чтобы перекрыть любые внутренние слои Main UI (0-3).
-				layerOffset = (level + 1) * 100 
-			};
-
-			reconciler.Reconcile(menuElement, template.templateAst);
-			reconciler.PostProcessBindings(menuElement);
-
-			var menuComp = menuElement.GetComponent<ContextMenuComponent>();
-			menuComp.SetItems(items, this, level);
-			
-			// 1. Предварительный расчет верстки меню под его реальные размеры
-			menuElement.SolveLayout(SizeConstraints.Loose(Screen.width, Screen.height));
-			float2 menuSize = menuElement.transform.calculatedSize;
-
-			// 2. Расчет позиции
-			float x = requestedPos.x;
-			float y = requestedPos.y - menuSize.y; // В Unity (0,0) внизу, поэтому открываем вниз от клика
-
-			// Если меню вылезает за правый край экрана:
-			if (x + menuSize.x > Screen.width)
-			{
-				if (level > 0 && parentBounds.x > 0)
-					x = parentBounds.x - menuSize.x; // Подменю открываем слева от родительского пункта
-				else
-					x = Screen.width - menuSize.x - 4f;
-			}
-			if (x < 4f) x = 4f;
-
-			// Если меню вылезает за нижний край экрана:
-			if (y < 4f)
-			{
-				if (level > 0 && parentBounds.w > 0)
-					y = parentBounds.y; // Подменю выравниваем по нижней кромке родителя
-				else
-					y = requestedPos.y; // Обычное меню открываем вверх от клика
-			}
-			if (y + menuSize.y > Screen.height)
-			{
-				y = Screen.height - menuSize.y - 4f;
-			}
-
-			menuElement.transform.localPos = new float2(x, y);
-
-			rootElement.AddChild(menuElement);
-			activeMenus.Add(new ActiveMenu { level = level, element = menuElement });
-
-			rootElement.MarkDirty();
+			throw new NotImplementedException();
+			// if (rootElement == null || items == null || items.Count == 0) return;
+			//
+			// // Закрываем меню того же уровня или выше
+			// CloseSubmenusAbove(level - 1);
+			//
+			// if (!canvasService.module.templates.TryGetValue(typeof(ContextMenuComponent), out var template))
+			// {
+			// 	Debug.LogError("[RUI] Шаблон 'ContextMenu' не найден!");
+			// 	return;
+			// }
+			//
+			// var menuElement = new CanvasElement
+			// {
+			// 	key = $"ContextMenu_Level_{level}",
+			// 	parent = rootElement,
+			// 	service = canvasService,
+			// 	reconciler = reconciler,
+			// 	// Каждый уровень меню получает +100 к слою отрисовки. 
+			// 	// Этого с запасом хватит, чтобы перекрыть любые внутренние слои Main UI (0-3).
+			// 	layerOffset = (level + 1) * 100 
+			// };
+			//
+			// reconciler.Reconcile(menuElement, template.templateAst);
+			// reconciler.PostProcessBindings(menuElement);
+			//
+			// var menuComp = menuElement.GetComponent<ContextMenuComponent>();
+			// menuComp.SetItems(items, this, level);
+			//
+			// // 1. Предварительный расчет верстки меню под его реальные размеры
+			// menuElement.SolveLayout(SizeConstraints.Loose(Screen.width, Screen.height));
+			// float2 menuSize = menuElement.transform.calculatedSize;
+			//
+			// // 2. Расчет позиции
+			// float x = requestedPos.x;
+			// float y = requestedPos.y - menuSize.y; // В Unity (0,0) внизу, поэтому открываем вниз от клика
+			//
+			// // Если меню вылезает за правый край экрана:
+			// if (x + menuSize.x > Screen.width)
+			// {
+			// 	if (level > 0 && parentBounds.x > 0)
+			// 		x = parentBounds.x - menuSize.x; // Подменю открываем слева от родительского пункта
+			// 	else
+			// 		x = Screen.width - menuSize.x - 4f;
+			// }
+			// if (x < 4f) x = 4f;
+			//
+			// // Если меню вылезает за нижний край экрана:
+			// if (y < 4f)
+			// {
+			// 	if (level > 0 && parentBounds.w > 0)
+			// 		y = parentBounds.y; // Подменю выравниваем по нижней кромке родителя
+			// 	else
+			// 		y = requestedPos.y; // Обычное меню открываем вверх от клика
+			// }
+			// if (y + menuSize.y > Screen.height)
+			// {
+			// 	y = Screen.height - menuSize.y - 4f;
+			// }
+			//
+			// menuElement.transform.localPos = new float2(x, y);
+			//
+			// rootElement.AddChild(menuElement);
+			// activeMenus.Add(new ActiveMenu { level = level, element = menuElement });
+			//
+			// rootElement.MarkDirty();
 		}
 
 		public void CloseSubmenusAbove(int level)

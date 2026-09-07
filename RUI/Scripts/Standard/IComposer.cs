@@ -4,6 +4,7 @@ namespace REDIZIT.RUI
 {
 	public interface IComposer
 	{
-		float2 Solve(SizeConstraints c);
+		PreferredSize Measure(SizeConstraints c);
+		void Arrange(float2 size);
 	}
 }

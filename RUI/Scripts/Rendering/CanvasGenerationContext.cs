@@ -150,7 +150,7 @@ namespace REDIZIT.RUI
         // Отрисовка квада
         public void AppendQuad(float2 pos, float2 size, Matrix4x4 matrix, Color color, float4 cornerRadii, float4 uvRect = default)
         {
-            if (currentBatch == null) return;
+            // if (currentBatch == null) return;
 
             int baseIndex = currentBatch.verts.Count;
 

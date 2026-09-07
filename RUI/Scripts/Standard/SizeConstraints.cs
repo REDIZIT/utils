@@ -17,8 +17,15 @@ namespace REDIZIT.RUI
 			this.maxY = maxY;
 		}
 
-		// Вписываем размер в рамки (если они заданы):
-		public float2 Constrain(float2 size)
+		public float? GetMax(int index) => index == 0 ? maxX : maxY;
+		public float? GetMin(int index) => index == 0 ? minX : minY;
+
+		public PreferredSize Clamp(PreferredSize size)
+		{
+			return new(Clamp(size.size));
+		}
+		
+		public float2 Clamp(float2 size)
 		{
 			float x = size.x;
 			if (minX.HasValue && x < minX.Value) x = minX.Value;

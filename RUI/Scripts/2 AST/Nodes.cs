@@ -33,7 +33,7 @@ namespace REDIZIT.RUI
     public class Node_Element : Node
     {
 	    public string key;
-	    public string composerType = "Fill";
+	    public string composerType;
 	    public bool isTemplate = false; // Флаг: является ли этот узел шаблоном
     
 	    public List<Node_Property> properties = new List<Node_Property>();

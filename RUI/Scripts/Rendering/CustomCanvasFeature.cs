@@ -19,7 +19,7 @@ namespace REDIZIT.RUI
             if (renderingData.cameraData.cameraType != CameraType.Game) return;
 
             // Теперь проверяем единственный синглтон-инстанс
-            if (CustomCanvas.Instance == null) return;
+            if (CanvasRenderer.Instance == null) return;
 
             renderer.EnqueuePass(_canvasPass);
         }
@@ -56,7 +56,7 @@ namespace REDIZIT.RUI
                     {
 	                    context.cmd.SetViewProjectionMatrices(Matrix4x4.identity, data.ProjectionMatrix);
 
-	                    var canvas = CustomCanvas.Instance;
+	                    var canvas = CanvasRenderer.Instance;
 	                    if (canvas == null) return;
 
 	                    var batches = canvas.context.finalizedBatches;

@@ -12,9 +12,9 @@ using UnityEditor;
 namespace REDIZIT.RUI
 {
     [ExecuteAlways]
-    public class CustomCanvas : MonoBehaviour
+    public class CanvasRenderer : MonoBehaviour
     {
-        public static CustomCanvas Instance { get; set; }
+        public static CanvasRenderer Instance { get; set; }
 
         public Material combinedMaterial;
 
@@ -116,17 +116,22 @@ namespace REDIZIT.RUI
 
 	        if (Application.isPlaying)
 	        {
-		        inputManager?.ProcessInput(root);
+		        // inputManager?.ProcessInput(root);
 		        root.UpdateTree();
 	        }
 
 	        if (isDirty)
 	        {
-		        // Верстка (внутри себя сама вызывает OnLayoutComplete у нужных компонентов)
-		        var screenConstraints = SizeConstraints.Tight(new float2(Screen.width, Screen.height));
-		        root.SolveLayout(screenConstraints);
+		        root.ResetTransformsRecursive();
 
-		        // Отрисовка
+		        float2 screenSize = new(Screen.width, Screen.height);
+		        SizeConstraints constraints = new(0, 0, screenSize.x, screenSize.y);
+		        
+		        root.Measure(constraints);
+		        root.Arrange(new(0, screenSize));
+		        
+		        root.CheckResolvedRecursive();
+
 		        context.Clear();
 		        root.RenderTree(context);
 		        context.FinalizeBatches();

@@ -5,7 +5,7 @@ using Zenject;
 
 namespace REDIZIT.RUI
 {
-    public class Image : CanvasComponent
+    public class Image : CanvasComponent, IMeasurable
     {
         public Color color = Color.white;
         public Material material;
@@ -103,13 +103,13 @@ namespace REDIZIT.RUI
             Material targetMat = spriteMaterialInstance != null ? spriteMaterialInstance : material;
             if (targetMat == null) return;
 
-            float2 totalSize = Transform.calculatedSize;
+            float2 totalSize = Transform.size;
             if (totalSize.x <= 0 || totalSize.y <= 0) return;
 
             ctx.SetLayer(sprite == null ? CanvasGenerationContext.Layer.Background : CanvasGenerationContext.Layer.Content);
             ctx.SetMaterial(targetMat);
             Matrix4x4 localToRoot = Element.LocalToRoot;
-
+            
             if (mode == ImageMode.Simple)
             {
                 float4 uvRect = float4.zero;
@@ -174,6 +174,11 @@ namespace REDIZIT.RUI
                     }
                 }
             }
+        }
+
+        public PreferredSize Measure(SizeConstraints constraints)
+        {
+	        return new(32, 32);
         }
     }
 }
