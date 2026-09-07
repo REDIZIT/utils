@@ -6,7 +6,7 @@ using Zenject;
 
 namespace REDIZIT.RUI
 {
-    public class Label : CanvasComponent
+    public class Label : CanvasComponent, IMeasurable
     {
         private string internalText = "Label";
         private int internalFontSize = 13;
@@ -164,6 +164,11 @@ namespace REDIZIT.RUI
 	        }
 
 	        subpixelFont.ApplyAtlasIfNeeded();
+        }
+
+        public PreferredSize Measure(SizeConstraints constraints)
+        {
+	        return new(GetPreferredSize());
         }
     }
 }

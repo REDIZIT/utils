@@ -1,9 +1,16 @@
 ﻿namespace REDIZIT.RUI
 {
-	public class LayoutElement : CanvasComponent
+	public class LayoutElement : CanvasComponent, ILayoutSolver
 	{
-		public bool ignoreLayout = false;
-		public float spacingBefore = 0f;
-		public float spacingAfter = 0f;
+		public bool usePreferredWidth;
+		public bool usePreferredHeight;
+		
+		public void Solve(SizeConstraints constraints)
+		{
+			Element.TryMeasure(constraints, out PreferredSize preferredSize);
+
+			if (usePreferredWidth) Transform.size.x = preferredSize.size.x;
+			if (usePreferredHeight) Transform.size.y = preferredSize.size.y;
+		}
 	}
 }

@@ -143,6 +143,27 @@ namespace REDIZIT.RUI
 		        child.Solve(containerConstraints);
 	        }
         }
+        
+        public bool TryMeasure(SizeConstraints constraints, out PreferredSize preferredSize)
+        {
+	        foreach (CanvasComponent comp in components)
+	        {
+		        if (comp is IMeasurable m)
+		        {
+			        preferredSize = m.Measure(constraints);
+			        return true;
+		        }
+	        }
+	        
+	        foreach (CanvasElement child in children)
+	        {
+		        if (child.TryMeasure(constraints, out preferredSize)) return true;
+	        }
+
+	        preferredSize = default;
+	        return false;
+        }
+
 
         public void UpdateTree()
         {
