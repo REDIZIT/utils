@@ -1,10 +1,12 @@
 ﻿using System.Collections.Generic;
+using System.Text;
 
 namespace REDIZIT.RUI
 {
     public abstract class Node
     {
         public abstract IEnumerable<Node> EnumerateChildren();
+        public virtual string GetPrettyInfo() => null;
 
         public IEnumerable<Node> EnumerateEachChild()
         {
@@ -16,6 +18,25 @@ namespace REDIZIT.RUI
                     yield return subchild;
                 }
             }
+        }
+        
+        public void PrintTree(StringBuilder b, int depth)
+        {
+	        for (int i = 0; i < depth; i++) b.Append("- ");
+
+	        b.AppendLine(ToString());
+
+	        foreach (Node child in EnumerateChildren())
+	        {
+		        child.PrintTree(b, depth + 1);
+	        }
+        }
+
+        public override string ToString()
+        {
+	        string info = GetPrettyInfo();
+	        if (info == null) return GetType().Name;
+	        else return $"{GetType().Name} ({info})";
         }
     }
 
@@ -44,6 +65,8 @@ namespace REDIZIT.RUI
 		    foreach (var comp in components) yield return comp;
 		    foreach (var child in children) yield return child;
 	    }
+
+	    public override string GetPrettyInfo() => $"'{key}'{(isTemplate ? " template" : "")}, props: {properties.Count}";
     }
 
     public class Node_Component : Node
@@ -56,6 +79,8 @@ namespace REDIZIT.RUI
         {
             return properties;
         }
+
+        public override string GetPrettyInfo() => $"{typeName}#{id}";
     }
 
     public class Node_Property : Node
@@ -67,6 +92,8 @@ namespace REDIZIT.RUI
         {
             if (value != null) yield return value;
         }
+        
+        public override string GetPrettyInfo() => $"name: '{name}'";
     }
 
     public abstract class Node_Expression : Node { }
@@ -75,24 +102,32 @@ namespace REDIZIT.RUI
     {
         public float value;
         public override IEnumerable<Node> EnumerateChildren() { yield break; }
+        
+        public override string GetPrettyInfo() => $"float: {value}";
     }
 
     public class Node_StringLiteral : Node_Expression
     {
         public string value;
         public override IEnumerable<Node> EnumerateChildren() { yield break; }
+        
+        public override string GetPrettyInfo() => $"str: '{value}'";
     }
 
     public class Node_ColorLiteral : Node_Expression
     {
         public string hex;
         public override IEnumerable<Node> EnumerateChildren() { yield break; }
+        
+        public override string GetPrettyInfo() => $"color: {hex}";
     }
 
     public class Node_BooleanLiteral : Node_Expression
     {
         public bool value;
         public override IEnumerable<Node> EnumerateChildren() { yield break; }
+        
+        public override string GetPrettyInfo() => $"bool: {value}";
     }
 
     public class Node_TupleLiteral : Node_Expression
@@ -109,5 +144,7 @@ namespace REDIZIT.RUI
     {
         public string name;
         public override IEnumerable<Node> EnumerateChildren() { yield break; }
+        
+        public override string GetPrettyInfo() => $"'{name}'";
     }
 }

@@ -1,16 +1,26 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Text;
+using Microsoft.Extensions.Logging;
 
 namespace REDIZIT.RUI
 {
-    public static class Parser
+    public class Parser
     {
-        public static int current;
-        public static List<Token> tokens;
+        private int current;
+        private List<Token> tokens;
+        private ILogger<Parser> logger;
 
-        public static Node_Root Parse(List<Token> sourceTokens)
+        public Parser(ILogger<Parser> logger)
         {
+	        this.logger = logger;
+        }
+
+        public Node_Root Parse(List<Token> sourceTokens)
+        {
+	        logger.LogDebug($"Parse {sourceTokens.Count} source tokens");
+	        
             current = 0;
             tokens = sourceTokens;
             tokens.RemoveAll(t => t is Token_Comment);
@@ -25,13 +35,20 @@ namespace REDIZIT.RUI
                 SkipTerminators();
             }
 
+            if (logger.IsEnabled(LogLevel.Debug))
+            {
+	            StringBuilder b = new();
+	            root.PrintTree(b, 0);
+	            logger.LogDebug($"Parsed tree:\n{b}");
+            }
+
             return root;
         }
 
-        // Парсинг CanvasElement:
-        // { ... }
-        public static Node_Element ParseElement()
+        private Node_Element ParseElement()
 		{
+			logger.LogDebug("Parse Element");
+			
 		    SkipTerminators();
 		    
 		    // ЗАЩИТА ОТ БЕСКОНЕЧНОГО ЦИКЛА: запоминаем стартовую позицию
@@ -51,26 +68,10 @@ namespace REDIZIT.RUI
 			    key = Consume<Token_Identifier>().name;
 		    }
 
-		    Node_Element element = new Node_Element { 
+		    Node_Element element = new() { 
 		        key = key,
 		        isTemplate = isTemplate 
 		    };
-
-		    if (Check<Token_BracketOpen>())
-		    {
-		        Consume<Token_BracketOpen>();
-		        SkipTerminators();
-		        while (!IsAtEnd() && !Check<Token_BracketClose>())
-		        {
-		            Token_Identifier propName = Consume<Token_Identifier>();
-		            Consume<Token_Assign>();
-		            element.properties.Add(new Node_Property { name = propName.name, value = ParseExpression() });
-		            if (Check<Token_Comma>()) Consume<Token_Comma>();
-		            else break;
-		            SkipTerminators();
-		        }
-		        Consume<Token_BracketClose>();
-		    }
 
 		    SkipTerminators();
 
@@ -80,14 +81,26 @@ namespace REDIZIT.RUI
 		        SkipTerminators();
 		        while (!IsAtEnd() && !Check<Token_BlockClose>())
 		        {
-		            if (IsComponentStart()) element.components.Add(ParseComponent());
+			        if (IsComponentStart())
+			        {
+				        element.components.Add(ParseComponent());
+			        }
 		            else if (Check<Token_Identifier>() && Check<Token_Assign>(1)) 
 		            {
 		                Token_Identifier propName = Consume<Token_Identifier>();
 		                Consume<Token_Assign>();
-		                element.properties.Add(new Node_Property { name = propName.name, value = ParseExpression() });
+		                
+		                logger.LogDebug($"Append element property '{propName.name}'");
+		                element.properties.Add(new()
+		                {
+			                name = propName.name,
+			                value = ParseExpression()
+		                });
 		            }
-		            else element.children.Add(ParseElement());
+		            else
+		            {
+			            element.children.Add(ParseElement());
+		            }
 		            
 		            SkipTerminators();
 		        }
@@ -104,7 +117,7 @@ namespace REDIZIT.RUI
 		    return element;
 		}
 
-        private static bool IsComponentStart()
+        private bool IsComponentStart()
         {
             if (!Check<Token_Identifier>()) return false;
 
@@ -114,20 +127,13 @@ namespace REDIZIT.RUI
             // Type#id: ...
             if (Check<Token_Hash>(1) && Check<Token_Identifier>(2) && Check<Token_Colon>(3)) return true;
 
-            // Пустой компонент в конце строки (Type \n)
-            if (Check<Token_Terminator>(1) || Check<Token_BlockClose>(1)) return true;
-
             return false;
         }
 
-        // Парсинг компонента:
-        // Button: { ... }
-        // Button: normalColor = #FF0000, hoverColor = #00FF00
-        // Button#myBtn: normalColor = #FF0000
-        // Button:
-        // Button
-        public static Node_Component ParseComponent()
+        private Node_Component ParseComponent()
         {
+	        logger.LogDebug("Parse Component");
+	        
             Token_Identifier typeIdent = Consume<Token_Identifier>();
             string id = null;
 
@@ -137,56 +143,29 @@ namespace REDIZIT.RUI
                 id = Consume<Token_Identifier>("Ожидался идентификатор после #").name;
             }
 
+            Consume<Token_Colon>();
+
             Node_Component comp = new Node_Component
             {
                 typeName = typeIdent.name,
                 id = id
             };
 
-            // Двоеточие опционально, если компонент пустой
-            bool hasColon = Check<Token_Colon>();
-            if (hasColon) Consume<Token_Colon>();
-
             SkipSpacesOnly();
 
-            // Вариант А: Многострочный блок в фигурных скобках { ... }
-            if (Check<Token_BlockOpen>())
-            {
-                Consume<Token_BlockOpen>();
-                SkipTerminators();
-
-                while (!IsAtEnd() && !Check<Token_BlockClose>())
-                {
-                    comp.properties.Add(ParseSingleProperty());
-                    SkipTerminators();
-                }
-
-                Consume<Token_BlockClose>("Ожидалась '}' блока компонента.");
-            }
-            // Вариант Б: Инлайн-свойства через запятую: prop = val, prop2 = val
-            else if (hasColon && Check<Token_Identifier>() && Check<Token_Assign>(1))
+            if (Check<Token_Identifier>() && Check<Token_Assign>(1))
             {
                 while (!IsAtEnd() && Check<Token_Identifier>() && Check<Token_Assign>(1))
                 {
                     comp.properties.Add(ParseSingleProperty());
-
-                    if (Check<Token_Comma>())
-                    {
-                        Consume<Token_Comma>();
-                        SkipTerminators();
-                    }
-                    else
-                    {
-                        break;
-                    }
+                    SkipSpacesOnly();
                 }
             }
-            // Вариант В: Пустой компонент (ничего не делаем)
 
             return comp;
         }
 
-        private static Node_Property ParseSingleProperty()
+        private Node_Property ParseSingleProperty()
         {
             Token_Identifier propName = Consume<Token_Identifier>("Ожидалось имя свойства.");
             Consume<Token_Assign>("Ожидался знак '=' после имени свойства.");
@@ -194,8 +173,10 @@ namespace REDIZIT.RUI
             return new Node_Property { name = propName.name, value = expr };
         }
 
-        public static Node_Expression ParseExpression()
+        private Node_Expression ParseExpression()
         {
+	        logger.LogDebug("Parse Expression");
+	        
             SkipSpacesOnly();
 
             // Векторы/кортежи: (300, 200) или (16, 16, 16, 16)
@@ -255,41 +236,41 @@ namespace REDIZIT.RUI
             }
 
             Token got = Peek();
-            throw new Exception($"Неожиданный токен для значения: '{got.GetType().Name}' на строке {got.line}");
+            throw new($"Неожиданный токен для значения: '{got.GetType().Name}' на строке {got.line}");
         }
 
-        public static bool Check<T>(int offset = 0) where T : Token
+        private bool Check<T>(int offset = 0) where T : Token
         {
             int index = current + offset;
             if (index >= tokens.Count) return false;
             return tokens[index] is T;
         }
 
-        public static Token Advance()
+        private Token Advance()
         {
             if (!IsAtEnd()) current++;
             return Previous();
         }
 
-        public static bool IsAtEnd() => current >= tokens.Count;
+        private bool IsAtEnd() => current >= tokens.Count;
 
-        public static Token Peek(int offset = 0) => tokens[current + offset];
+        private Token Peek(int offset = 0) => tokens[current + offset];
         
-        public static T Peek<T>(int offset = 0) where T : Token
+        private T Peek<T>(int offset = 0) where T : Token
         {
 	        return (T)Peek(offset);
         }
 
-        public static Token Previous() => tokens[current - 1];
+        private Token Previous() => tokens[current - 1];
 
-        public static T Consume<T>(string errorMessage = "Неожиданная ошибка") where T : Token
+        private T Consume<T>(string errorMessage = "Неожиданная ошибка") where T : Token
         {
             if (Check<T>()) return (T)Advance();
             Token got = IsAtEnd() ? new Token_EOF() : Peek();
             throw new Exception($"Ошибка парсинга (строка {got.line}): {errorMessage} Получено: {got.GetType().Name}");
         }
 
-        public static bool SkipTerminators()
+        private bool SkipTerminators()
         {
             if (IsAtEnd()) return false;
             while (Peek() is Token_Terminator)
@@ -300,7 +281,7 @@ namespace REDIZIT.RUI
             return false;
         }
 
-        private static void SkipSpacesOnly()
+        private void SkipSpacesOnly()
         {
             // Токены пробелов уже отфильтрованы Tokenizer'ом
         }

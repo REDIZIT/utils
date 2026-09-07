@@ -144,26 +144,6 @@ namespace REDIZIT.RUI
 	        }
         }
 
-        public bool TryMeasure(SizeConstraints constraints, out PreferredSize preferredSize)
-        {
-	        foreach (CanvasComponent comp in components)
-	        {
-		        if (comp is IMeasurable m)
-		        {
-			        preferredSize = m.Measure(constraints);
-			        return true;
-		        }
-	        }
-	        
-	        foreach (CanvasElement child in children)
-	        {
-		        if (child.TryMeasure(constraints, out preferredSize)) return true;
-	        }
-
-	        preferredSize = default;
-	        return false;
-        }
-
         public void UpdateTree()
         {
             if (!isEnabled) return;
@@ -223,7 +203,7 @@ namespace REDIZIT.RUI
             float maxX = math.max(math.max(p0.x, p1.x), math.max(p2.x, p3.x));
             float maxY = math.max(math.max(p0.y, p1.y), math.max(p2.y, p3.y));
 
-            return new Vector4(minX, minY, maxX, maxY);
+            return new(minX, minY, maxX, maxY);
         }
 
         public string GetPath()

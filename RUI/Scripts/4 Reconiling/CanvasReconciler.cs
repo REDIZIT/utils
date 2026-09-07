@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using Microsoft.Extensions.Logging;
 using Unity.Mathematics;
 using UnityEngine;
 using Zenject;
@@ -12,15 +13,19 @@ namespace REDIZIT.RUI
     {
         private readonly CanvasService service;
         private readonly DiContainer container;
+        private readonly ILogger<CanvasReconciler> logger;
 
         public CanvasReconciler(CanvasService service, DiContainer container)
         {
             this.service = service;
             this.container = container;
+            logger = container.Resolve<ILogger<CanvasReconciler>>();
         }
 
         public void Reconcile(CanvasElement element, Node_Element node)
         {
+	        logger.LogDebug($"Reconcile '{element}' with {node} and {node.properties.Count} properties");
+	        
 	        element.service = service;
 	        element.reconciler = this;
 	        
@@ -35,6 +40,8 @@ namespace REDIZIT.RUI
 
         private void ApplyElementProperty(CanvasElement e, Node_Property prop)
         {
+	        logger.LogDebug($"ApplyElementProperty '{e.key}' with {prop.name}");
+	        
 	        CanvasTransform t = e.transform;
 	        Node_Expression expr = prop.value;
 
@@ -69,7 +76,8 @@ namespace REDIZIT.RUI
 			        break;
 		        
 		        case "pos": 
-			        t.pos = EvaluateValue<float2>(expr); 
+			        t.pos = EvaluateValue<float2>(expr);
+			        logger.LogDebug($"Pos: {t.pos}");
 			        break;
 		        
 		        case "x":
@@ -95,6 +103,8 @@ namespace REDIZIT.RUI
 
         private void ReconcileComponents(CanvasElement element, List<Node_Component> nodes)
         {
+	        logger.LogDebug($"ReconcileComponents '{element.key}' with {nodes.Count} components");
+	        
             List<CanvasComponent> newComponents = null;
         
             for (int i = 0; i < nodes.Count; i++)

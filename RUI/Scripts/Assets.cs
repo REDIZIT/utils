@@ -157,9 +157,10 @@ namespace REDIZIT.RUI
 
                 Tokenizer tokenizer = new();
                 Resolver resolver = new(container.Resolve<ILogger<Resolver>>());
+                Parser parser = new(container.Resolve<ILogger<Parser>>());
                 
                 List<Token> tokens = tokenizer.Tokenize(text);
-                Node_Root rootNode = Parser.Parse(tokens);
+                Node_Root rootNode = parser.Parse(tokens);
                 resolver.Resolve(rootNode, canvasService.module);
 
                 fileAsts[path] = rootNode;
