@@ -20,7 +20,7 @@ namespace REDIZIT.RUI
 	        int forwardIndex = (int)axis;
 	        int crossIndex = 1 - forwardIndex;
 
-	        float2 containerSize = Transform.size;
+	        // float2 containerSize = Transform.size;
 	        // if (fitContent)
 	        // {
 		       //  float? crossConstraint = constraints.GetMax(crossIndex);
@@ -45,14 +45,19 @@ namespace REDIZIT.RUI
 	        // Children Measure
 	        //
 	        float childrenTotalForwardSize = 0;
+	        float maxCrossSize = 0; 
 	        foreach (CanvasElement child in Element.Children)
 	        {
 		        child.Solve(childConstraints);
 		        childrenTotalForwardSize += child.transform.size[forwardIndex];
+		        // Debug.Log($"child '{child.GetPath()}' size: {child.transform.size}");
+		        maxCrossSize = Mathf.Max(maxCrossSize, child.transform.size[crossIndex]);
 	        }
+	        // Debug.Log($"maxCrossSize: {maxCrossSize}");
 
 	        float totalSpacing = spacing * Mathf.Max(0, Element.Children.Count - 1);
 	        float totalForwardSize = childrenTotalForwardSize + totalSpacing;
+	        
 	        
 	        //
 	        // Children Placement
@@ -76,17 +81,25 @@ namespace REDIZIT.RUI
 
 		        cursor += childForwardSize + spacing;
 		        
-		        child.transform.size[crossIndex] = containerSize[crossIndex] - paddingSum[crossIndex];
+		        // child.transform.size[crossIndex] = containerSize[crossIndex] - paddingSum[crossIndex];
+		        
+		        if (childConstraints.GetMax(crossIndex).HasValue) child.transform.size[crossIndex] = childConstraints.GetMax(crossIndex).Value - paddingSum[crossIndex];
 	        }
 
 	        Transform.size[forwardIndex] = paddingSum[forwardIndex] + totalForwardSize;
 
-	        if (constraints.GetMax(crossIndex).HasValue)
-	        {
-		        // Debug.Log($"Stack max[{crossIndex}] has value = {constraints.GetMax(crossIndex)!.Value}");
-		        Transform.size[crossIndex] = constraints.GetMax(crossIndex)!.Value;
-	        }
+
+	        float fitCrossSize = maxCrossSize;
+	        // if (constraints.GetMax(crossIndex).HasValue)
+	        // {
+		       //  Debug.Log($"Stack max constraint [{crossIndex}]: {constraints.GetMax(crossIndex)!.Value}, maxCrossSize: {maxCrossSize}");
+		       //  fitCrossSize = constraints.GetMax(crossIndex)!.Value;
+		       //  // Transform.size[crossIndex] = maxCrossSize;
+		       //  // Transform.size[crossIndex] = constraints.GetMax(crossIndex)!.Value;
+	        // }
 	        // Transform.size[crossIndex] = containerSize[crossIndex];
+	        Transform.size[crossIndex] = fitCrossSize;
+	        // Debug.Log($"Stack {Element.GetPath()} maxCrossSize: {maxCrossSize}");
 
 	        //
 	        // Self Snapping
