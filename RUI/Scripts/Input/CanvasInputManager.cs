@@ -133,7 +133,7 @@ namespace REDIZIT.RUI
         {
             if (!element.isEnabled) return false;
 
-            var mask = element.GetComponent<Mask>();
+            var mask = element.TryGetComponent<Mask>();
             if (mask != null && mask.enabled)
             {
                 Vector4 clip = mask.GetWorldClipRect();

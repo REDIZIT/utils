@@ -89,11 +89,22 @@ namespace REDIZIT.RUI
 	        MarkDirty();
         }
 
-        public T GetComponent<T>() where T : class
+        public T? TryGetComponent<T>() where T : class
         {
-            for (int i = 0; i < components.Count; i++)
-                if (components[i] is T match) return match;
-            return null;
+	        foreach (CanvasComponent c in components)
+	        {
+		        if (c is T match) return match;
+	        }
+	        return null;
+        }
+        
+        public CanvasComponent? TryGetComponent(Type type, string? name = null)
+        {
+	        foreach (CanvasComponent c in components)
+	        {
+		        if ((name == null || c.id == name) && c.GetType() == type) return c;
+	        }
+	        return null;
         }
 
         public CanvasComponent GetComponent(Type targetType)
@@ -188,7 +199,7 @@ namespace REDIZIT.RUI
 	        int previousOffset = ctx.currentLayerOffset;
 	        ctx.currentLayerOffset += layerOffset;
 
-	        Mask mask = GetComponent<Mask>();
+	        Mask mask = TryGetComponent<Mask>();
 	        bool hasMask = mask != null && mask.enabled;
 	        if (hasMask) ctx.PushClipRect(mask.GetWorldClipRect());
 

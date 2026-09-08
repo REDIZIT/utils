@@ -13,7 +13,7 @@ namespace REDIZIT.RUI
         
         public float4 padding;
         public float spacing;
-        public bool fitContent = true;
+        public bool fitCross = false;
 
         public void Solve(SizeConstraints constraints)
         {
@@ -55,6 +55,7 @@ namespace REDIZIT.RUI
 	        //
 	        
 	        float cursor = 0;
+	        float childCrossSize = maxCrossSize == 0 ? childConstraints.GetMax(crossIndex) ?? 0 : maxCrossSize;
 	        
 	        cursor += paddingForwardStart;
 
@@ -67,12 +68,14 @@ namespace REDIZIT.RUI
 		        child.transform.pos[crossIndex] = paddingCrossStart;
 
 		        cursor += childForwardSize + spacing;
-		        
-		        if (childConstraints.GetMax(crossIndex).HasValue) child.transform.size[crossIndex] = childConstraints.GetMax(crossIndex)!.Value - paddingSum[crossIndex];
+
+		        child.transform.size[crossIndex] = childCrossSize;
+		        // if (childConstraints.GetMax(crossIndex).HasValue) child.transform.size[crossIndex] = childConstraints.GetMax(crossIndex)!.Value - paddingSum[crossIndex];
 	        }
 
 	        Transform.size[forwardIndex] = paddingSum[forwardIndex] + totalForwardSize;
 	        Transform.size[crossIndex] = maxCrossSize;
+	        // Debug.Log($"Stack {Element.GetPath()} solved size: {Transform.size} from constraints: {constraints} and maxCrossSize: {maxCrossSize}");
 
 	        //
 	        // Self Snapping

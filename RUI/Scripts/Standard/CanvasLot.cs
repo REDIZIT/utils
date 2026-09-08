@@ -7,7 +7,7 @@
 		public void Refresh(TModel model)
 		{
 			this.model = model;
-			OnRefresh();
+			Refresh();
 			MarkDirty();
 		}
 
@@ -19,6 +19,6 @@
 			}
 		}
 
-		protected abstract void OnRefresh();
+		protected abstract void Refresh();
 	}
 }

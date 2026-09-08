@@ -22,6 +22,33 @@ namespace REDIZIT.RUI
             logger = container.Resolve<ILogger<CanvasReconciler>>();
         }
 
+        public TTemplate Spawn<TTemplate>(CanvasElement parent) where TTemplate : CanvasComponent
+        {
+	        if (!service.module.templates.TryGetValue(typeof(TTemplate), out CanvasTemplate template))
+	        {
+		        throw new($"Template of type {typeof(TTemplate)} not found");
+	        }
+	        return Spawn(template, parent).TryGetComponent<TTemplate>();
+        }
+        
+        public CanvasElement Spawn(CanvasTemplate template, CanvasElement parent)
+        {
+	        CanvasElement inst = new()
+	        {
+		        key = template.templateAst.key,
+		        parent = parent,
+		        service = service,
+		        reconciler = this
+	        };
+        
+	        Reconcile(inst, template.templateAst);
+	        PostProcessBindings(inst);
+
+	        parent.AddChild(inst);
+
+	        return inst;
+        }
+
         public void Reconcile(CanvasElement element, Node_Element node)
         {
 	        logger.LogDebug($"Reconcile '{element}' with {node} and {node.properties.Count} properties");
@@ -109,8 +136,11 @@ namespace REDIZIT.RUI
         
             for (int i = 0; i < nodes.Count; i++)
             {
-                var node = nodes[i];
-                if (!service.module.componentTypes.TryGetValue(node.typeName, out Type type)) continue;
+                Node_Component node = nodes[i];
+                if (service.module.componentTypes.TryGetValue(node.typeName, out Type type) == false)
+                {
+	                throw new WireException($"Component type '{node.typeName}' not found");
+                }
         
                 CanvasComponent comp = null;
                 foreach (CanvasComponent c in element.Components)
@@ -210,7 +240,7 @@ namespace REDIZIT.RUI
             object value;
             if (targetType.IsInheritedFrom(typeof(CanvasComponent)))
             {
-	            if (TryFindComponent(comp.Element, targetType, prop.name, out CanvasComponent component))
+	            if (TryResolveComponentDependency(comp.Element, targetType, out CanvasComponent component, prop.name))
 	            {
 		            value = component;
 		            Debug.Log($"Component found '{component.id}'");
@@ -246,15 +276,10 @@ namespace REDIZIT.RUI
 
                 if (fInfo.isComponent)
                 {
-                    if (fInfo.isTemplate)
-                    {
-                        value = Activator.CreateInstance(fInfo.fieldType);
-                    }
-                    else
-                    {
-                        value = FindComponentByID(root, fInfo.fieldType, fInfo.field.Name) ?? 
-                                FindComponentByType(root, fInfo.fieldType);
-                    }
+	                if (TryResolveComponentDependency(root, fInfo.fieldType, out CanvasComponent comp, fInfo.field.Name))
+	                {
+		                value = comp;
+	                }
                 }
                 else if (fInfo.isElement)
                 {
@@ -267,56 +292,132 @@ namespace REDIZIT.RUI
                 }
                 else
                 {
-                    throw new WireException($"Requested element '{fInfo.field.Name}' of type {fInfo.fieldType} not found");
+                    throw new WireException($"Requested element '{fInfo.field.Name}' of type {fInfo.fieldType} not found while wiring component {target} at {root.GetPath()}");
                 }
             }
         }
-
-        private bool TryFindComponent(CanvasElement element, Type componentType, string componentName, out CanvasComponent component)
-        {
-	        component = FindComponentByID(element, componentType, componentName);
-	        if (component != null) return true;
-
-	        component = FindComponentByType(element, componentType);
-	        if (component != null) return true;
-
-	        return false;
-        }
         
-        private CanvasComponent FindComponentByID(CanvasElement e, Type t, string id)
-        {
-	        foreach (CanvasComponent component in e.Components)
-	        {
-		        if (t.IsAssignableFrom(component.GetType()) && string.Equals(component.id, id, StringComparison.OrdinalIgnoreCase))
-		        {
-			        return component;
-		        }
-	        }
-	        
-	        foreach (CanvasElement child in e.Children)
-	        {
-		        var f = FindComponentByID(child, t, id);
-		        if (f != null) return f;
-	        }
-	        
-            return null;
-        }
+        private bool TryResolveComponentDependency(CanvasElement startElement, Type componentType, out CanvasComponent comp, string? componentName = null)
+		{
+		    CanvasComponent firstTypeMatch = null;
 
-        private CanvasComponent FindComponentByType(CanvasElement e, Type t)
-        {
-	        foreach (CanvasComponent component in e.Components)
-	        {
-		        if (t.IsAssignableFrom(component.GetType())) return component;
-	        }
-	        
-	        foreach (CanvasElement child in e.Children)
-	        {
-		        var f = FindComponentByType(child, t);
-		        if (f != null) return f;
-	        }
-	        
-            return null;
-        }
+		    // 1. Проверяем СЕБЯ (Self)
+		    if (CheckElementComponents(startElement, componentType, componentName, ref firstTypeMatch, out comp))
+		    {
+		        return true; // Найдено точное совпадение (Тип + ID)
+		    }
+
+		    // 2. Ищем ВНИЗ по дереву (Children DFS)
+		    foreach (CanvasElement child in startElement.Children)
+		    {
+		        if (SearchDownDFS(child, componentType, componentName, ref firstTypeMatch, out comp))
+		        {
+		            return true;
+		        }
+		    }
+
+		    // 3. Поднимаемся НАВЕРХ (Upwards DFS)
+		    // Идем к родителю, проверяем его самого и соседние ветки (исключая ту, откуда пришли)
+		    CanvasElement childBranch = startElement;
+		    CanvasElement current = startElement.parent;
+
+		    while (current != null)
+		    {
+		        // Проверяем самого родителя
+		        if (CheckElementComponents(current, componentType, componentName, ref firstTypeMatch, out comp))
+		        {
+		            return true;
+		        }
+
+		        // Проверяем соседние ветви родителя
+		        foreach (CanvasElement sibling in current.Children)
+		        {
+		            if (sibling == childBranch) continue; // Пропускаем ветку, из которой поднялись
+
+		            if (SearchDownDFS(sibling, componentType, componentName, ref firstTypeMatch, out comp))
+		            {
+		                return true;
+		            }
+		        }
+
+		        // Двигаемся на уровень выше
+		        childBranch = current;
+		        current = current.parent;
+		    }
+
+		    // Точного совпадения по ID не нашлось. Возвращаем первого кандидата по совпадению типа.
+		    if (firstTypeMatch != null)
+		    {
+		        comp = firstTypeMatch;
+		        return true;
+		    }
+
+		    comp = null;
+		    return false;
+		}
+
+		/// <summary>
+		/// Рекурсивный поиск в глубину (DFS) вниз по поддереву.
+		/// </summary>
+		private bool SearchDownDFS(CanvasElement current, Type componentType, string? componentName, ref CanvasComponent firstTypeMatch, out CanvasComponent exactMatch)
+		{
+		    // Проверяем текущий узел
+		    if (CheckElementComponents(current, componentType, componentName, ref firstTypeMatch, out exactMatch))
+		    {
+		        return true;
+		    }
+
+		    // Углубляемся в детей
+		    foreach (CanvasElement child in current.Children)
+		    {
+		        if (SearchDownDFS(child, componentType, componentName, ref firstTypeMatch, out exactMatch))
+		        {
+		            return true;
+		        }
+		    }
+
+		    exactMatch = null;
+		    return false;
+		}
+
+		/// <summary>
+		/// Проверяет компоненты на одном конкретном элементе.
+		/// Дешёвый линейный проход без аллокаций.
+		/// </summary>
+		private bool CheckElementComponents(CanvasElement element, Type componentType, string? componentName, ref CanvasComponent firstTypeMatch, out CanvasComponent exactMatch)
+		{
+		    exactMatch = null;
+		    bool hasTargetName = !string.IsNullOrEmpty(componentName);
+
+		    foreach (CanvasComponent c in element.Components)
+		    {
+		        // Быстрая проверка типа (IsAssignableFrom)
+		        if (componentType.IsAssignableFrom(c.GetType()))
+		        {
+		            // Если задано имя, проверяем ID
+		            if (hasTargetName)
+		            {
+		                if (string.Equals(c.id, componentName, StringComparison.OrdinalIgnoreCase))
+		                {
+		                    exactMatch = c;
+		                    return true; // Найдено идеальное совпадение: и Тип, и ID
+		                }
+
+		                // Запоминаем только первого кандидата по типу
+		                firstTypeMatch ??= c;
+		            }
+		            else
+		            {
+		                // Если имя не требовалось — первое же совпадение типа считается точным
+		                exactMatch = c;
+		                return true;
+		            }
+		        }
+		    }
+
+		    return false;
+		}
+		
 
         private CanvasElement FindElementByKey(CanvasElement e, string key)
         {

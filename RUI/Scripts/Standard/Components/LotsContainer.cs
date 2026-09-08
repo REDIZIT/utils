@@ -42,7 +42,7 @@ namespace REDIZIT.RUI
 	        // 3. МГНОВЕННОЕ ОБНОВЛЕНИЕ ДАННЫХ В ПУЛЕ
 	        for (int i = 0; i < targetCount; i++)
 	        {
-		        var lot = Element.Children.ElementAt(i).GetComponent<TLot>();
+		        var lot = Element.Children.ElementAt(i).TryGetComponent<TLot>();
 		        lot?.Refresh(modelList[i]);
 	        }
 

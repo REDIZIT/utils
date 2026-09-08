@@ -29,7 +29,6 @@ namespace REDIZIT.RUI
 		[Inject] private Assets assetDatabase;
 		[Inject] private CanvasReconciler reconciler;
 		[Inject] private CanvasInputManager inputManager;
-		[Inject] public ContextMenuService contextMenuService;
 		[Inject] private ILogger<CanvasRenderer> logger;
 
 		private string rootFilePath;
@@ -77,15 +76,13 @@ namespace REDIZIT.RUI
 
 			if (root == null)
 			{
-				root = new CanvasElement { key = mainNode.key };
+				root = new() { key = mainNode.key };
 				root.onTreeDirty = MarkDirty;
 			}
 
 			reconciler.Reconcile(root, mainNode);
 			reconciler.PostProcessBindings(root);
             
-			contextMenuService.Attach(root);
-
 			MarkDirty();
 		}
 

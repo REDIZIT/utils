@@ -48,7 +48,7 @@ namespace REDIZIT.RUI
             
             if (targetGraphic == null && Element != null)
             {
-	            targetGraphic = Element.GetComponent<Image>();
+	            targetGraphic = Element.TryGetComponent<Image>();
             }
 
             recognizer.onDown = () =>

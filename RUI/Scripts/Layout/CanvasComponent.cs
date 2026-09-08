@@ -20,7 +20,7 @@ namespace REDIZIT.RUI
 		{
 			if (Element == null) return;
 			
-			T existing = Element.GetComponent<T>();
+			T existing = Element.TryGetComponent<T>();
 			if (existing == null) Element.AddComponent<T>();
 		}
 

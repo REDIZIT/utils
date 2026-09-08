@@ -10,7 +10,13 @@ namespace REDIZIT.RUI
 		{
 			Transform.pos = new(padding.x, padding.y);
 
-			float2 containerSize = Element.parent.transform.size;
+			float2 containerSize = 0;
+
+			if (Element.parent != null)
+			{
+				containerSize = Element.parent.transform.size;
+			}
+			
 			if (constraints.maxX.HasValue) containerSize.x = constraints.maxX.Value;
 			if (constraints.maxY.HasValue) containerSize.y = constraints.maxY.Value;
 			
