@@ -35,11 +35,24 @@ namespace REDIZIT.RUI
 	        }
         }
 
-        public IMeasurable measurable => components.OfType<IMeasurable>().First();
-        public IComposer composer => components.OfType<IComposer>().First();
+        private IMeasurable measurable => components.OfType<IMeasurable>().First();
+        private IComposer composer => components.OfType<IComposer>().First();
         
         public IReadOnlyCollection<CanvasElement> Children => children;
         public IReadOnlyCollection<CanvasComponent> Components => components;
+
+        public DesiredSize Measure(SizeConstraints constraints)
+        {
+	        return measurable.Measure(constraints);
+        }
+        
+        public void Arrange(ArrangeRect rect)
+        {
+	        transform = ResolvedTransform.FromRect(rect);
+	        Debug.Log($"{rect} -> {transform}");
+	        
+	        composer.Arrange(rect);
+        }
 
         public void MarkDirty()
         {

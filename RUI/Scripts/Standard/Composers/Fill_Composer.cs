@@ -5,13 +5,17 @@ namespace REDIZIT.RUI
 {
 	public class Fill_Composer : CanvasComponent, IComposer, IMeasurable
 	{
+		public float4 padding;
+		
 		public DesiredSize Measure(SizeConstraints c)
 		{
+			c.Shrink(padding.x + padding.z, padding.y + padding.w);
+			
 			float childMaxWidth = 0;
 			float childMaxHeight = 0;
 			foreach (CanvasElement child in Element.Children)
 			{
-				DesiredSize childSize = child.measurable.Measure(c);
+				DesiredSize childSize = child.Measure(c);
 				childMaxWidth = math.max(childMaxWidth, childSize.x);
 				childMaxHeight = math.max(childMaxHeight, childSize.y);
 			}
@@ -29,16 +33,13 @@ namespace REDIZIT.RUI
 			return new(desiredWidth!.Value, desiredHeight!.Value);
 		}
 
-		public void Arrange(float2 size)
+		public void Arrange(ArrangeRect finalRect)
 		{
-			Debug.Log($"Fill arrange: {size}");
-
+			ArrangeRect childRect = finalRect.Shrink(padding);
 			foreach (CanvasElement child in Element.Children)
 			{
-				child.composer.Arrange(size);
+				child.Arrange(childRect);
 			}
-
-			Element.transform = new(0, size);
 		}
 	}
 }

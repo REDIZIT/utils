@@ -52,15 +52,20 @@ namespace REDIZIT.RUI
 		
 		private Matrix4x4 localToParent;
 		
-		public ResolvedTransform(float2 pos, float2 size)
+		private ResolvedTransform(float2 pos, float2 size, float angle, float2 scale)
 		{
 			this.pos = pos;
 			this.size = size;
-			angle = 0;
-			scale = 1;
+			this.angle = angle;
+			this.scale = scale;
 			localToParent = default;
 			
 			RecalculateMatrix();
+		}
+
+		public static ResolvedTransform FromRect(ArrangeRect rect)
+		{
+			return new(rect.pos, rect.size, 0, 1);
 		}
 
 		private void RecalculateMatrix()
@@ -81,6 +86,11 @@ namespace REDIZIT.RUI
 
 				localToParent = trs * invCenter;
 			}
+		}
+
+		public override string ToString()
+		{
+			return $"(pos: {pos}, size: {size}, angle: {angle}, scale: {scale})";
 		}
 	}
 }

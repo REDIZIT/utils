@@ -37,6 +37,12 @@ namespace REDIZIT.RUI
 			throw new NotImplementedException();
 		}
 
+		public void Shrink(float delta)
+		{
+			if (mode == Mode.Unlimited) return;
+			value -= delta;
+		}
+
 		public override string ToString()
 		{
 			if (mode == Mode.Unlimited) return $"unlimited";

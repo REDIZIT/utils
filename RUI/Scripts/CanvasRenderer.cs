@@ -131,10 +131,9 @@ namespace REDIZIT.RUI
 					x = AxisConstraints.LessOrEqual(screenSize.x),
 					y = AxisConstraints.LessOrEqual(screenSize.y),
 				};
-				Debug.Log($"Measure root: {constraints} at: {root.measurable}");
-				DesiredSize desiredSize = root.measurable.Measure(constraints);
-				DesiredSize clampedSize = constraints.Clamp(desiredSize);
-				root.composer.Arrange(new(clampedSize.x, clampedSize.y));
+				Debug.Log($"Measure root: {constraints}");
+				root.Measure(constraints);
+				root.Arrange(new(0, screenSize));
 				w2.Stop();
 		        
 				// 3. Render pass
