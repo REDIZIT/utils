@@ -131,10 +131,11 @@ namespace REDIZIT.RUI
 					x = AxisConstraints.LessOrEqual(screenSize.x),
 					y = AxisConstraints.LessOrEqual(screenSize.y),
 				};
-				Debug.Log($"Measure root: {constraints}");
 				root.Measure(constraints);
 				root.Arrange(new(0, screenSize));
 				w2.Stop();
+				
+				Debug.Log(root.PrintTree());
 		        
 				// 3. Render pass
 				Stopwatch w3 = Stopwatch.StartNew();

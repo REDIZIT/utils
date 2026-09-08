@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -10,7 +11,6 @@ namespace REDIZIT.RUI
     {
         public string key;
         public CanvasElement parent;
-        // public CanvasTransform transform = new();
         public int layerOffset = 0;
 
         public Action onTreeDirty;
@@ -18,6 +18,8 @@ namespace REDIZIT.RUI
         public CanvasService service;
         public CanvasReconciler reconciler;
         public ResolvedTransform transform;
+        
+        public DesiredSize DesiredSize { get; private set; }
         
         private readonly List<CanvasElement> children = new();
         private readonly List<CanvasComponent> components = new();
@@ -40,19 +42,66 @@ namespace REDIZIT.RUI
         
         public IReadOnlyCollection<CanvasElement> Children => children;
         public IReadOnlyCollection<CanvasComponent> Components => components;
-
+        
         public DesiredSize Measure(SizeConstraints constraints)
         {
-	        return measurable.Measure(constraints);
+	        IMeasurable m = components.OfType<IMeasurable>().FirstOrDefault();
+	        if (m != null)
+	        {
+		        DesiredSize = m.Measure(constraints);
+	        }
+	        else
+	        {
+		        // Дефолтный Measure: максимальный размер детей
+		        float childMaxWidth = 0;
+		        float childMaxHeight = 0;
+		        foreach (var child in children)
+		        {
+			        var size = child.Measure(constraints);
+			        childMaxWidth = math.max(childMaxWidth, size.x);
+			        childMaxHeight = math.max(childMaxHeight, size.y);
+		        }
+		        DesiredSize = constraints.Clamp(new DesiredSize(childMaxWidth, childMaxHeight));
+	        }
+
+	        return DesiredSize;
         }
-        
+
         public void Arrange(ArrangeRect rect)
         {
 	        transform = ResolvedTransform.FromRect(rect);
-	        Debug.Log($"{rect} -> {transform}");
-	        
-	        composer.Arrange(rect);
+    
+	        IComposer c = components.OfType<IComposer>().FirstOrDefault();
+	        if (c != null)
+	        {
+		        c.Arrange(rect);
+	        }
+	        else if (children.Any())
+	        {
+		        // Default Layout: все дети в точке (0,0) с размером родителя
+		        ArrangeRect childRect = new ArrangeRect(float2.zero, rect.size);
+		        foreach (var child in children)
+		        {
+			        child.Arrange(childRect);
+		        }
+	        }
         }
+
+        // public DesiredSize Measure(SizeConstraints constraints)
+        // {
+	       //  Debug.Log($"Measure: {GetPath()}");
+	       //  DesiredSize = measurable.Measure(constraints);
+	       //  return DesiredSize;
+        // }
+        //
+        // public void Arrange(ArrangeRect rect)
+        // {
+	       //  transform = ResolvedTransform.FromRect(rect);
+	       //  Debug.Log($"Set transform {GetPath()} = {transform}");
+	       //  
+	       //  // if (Children.Any()) composer.Arrange(rect);
+	       //  if (Children.Any()) composer.Arrange(new(0, rect.size));
+        // }
 
         public void MarkDirty()
         {
@@ -216,6 +265,26 @@ namespace REDIZIT.RUI
 	        {
 		        int childIndex = parent.children.IndexOf(this);
 		        return $"{parentPath}/[{childIndex}]";
+	        }
+        }
+
+        public string PrintTree()
+        {
+	        StringBuilder b = new();
+	        PrintTree(b, 0);
+	        return b.ToString();
+        }
+
+        private void PrintTree(StringBuilder b, int depth)
+        {
+	        for (int i = 0; i < depth; i++) b.Append("- ");
+	        
+	        if (key != null) b.AppendLine($"{key}: {transform}");
+	        else b.AppendLine($"[{parent.children.IndexOf(this)}]: {transform}");
+	        
+	        foreach (CanvasElement child in children)
+	        {
+		        child.PrintTree(b, depth + 1);
 	        }
         }
     }

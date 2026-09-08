@@ -3,16 +3,6 @@ using UnityEngine;
 
 namespace REDIZIT.RUI
 {
-	public struct SolveContext
-	{
-		public float2 containerSize;
-
-		public SolveContext(float x, float y)
-		{
-			containerSize = new(x, y);
-		}
-	}
-
 	public struct DesiredSize
 	{
 		public float x, y;
@@ -28,19 +18,13 @@ namespace REDIZIT.RUI
 			x = size.x;
 			y = size.y;
 		}
-	}
 
-	public struct SolvedSize
-	{
-		public float2 size;
-
-		public SolvedSize(float2 size)
+		public override string ToString()
 		{
-			this.size = size;
+			return $"({x}; {y})";
 		}
 	}
-	
-	
+
 	public struct ResolvedTransform
 	{
 		public float2 pos;
@@ -90,7 +74,8 @@ namespace REDIZIT.RUI
 
 		public override string ToString()
 		{
-			return $"(pos: {pos}, size: {size}, angle: {angle}, scale: {scale})";
+			// return $"(pos: {pos}, size: {size}, angle: {angle}, scale: {scale})";
+			return $"(localPos: {pos.x}x{pos.y}, size: {size.x}x{size.y})";
 		}
 	}
 }
