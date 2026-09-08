@@ -166,7 +166,7 @@ namespace REDIZIT.RUI
 	        subpixelFont.ApplyAtlasIfNeeded();
         }
 
-        public PreferredSize Measure(SizeConstraints constraints)
+        public DesiredSize Measure(SizeConstraints constraints)
         {
 	        return new(GetPreferredSize());
         }

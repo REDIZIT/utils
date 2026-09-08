@@ -2,6 +2,6 @@
 {
 	public interface IMeasurable
 	{
-		PreferredSize Measure(SizeConstraints constraints);
+		DesiredSize Measure(SizeConstraints constraints);
 	}
 }

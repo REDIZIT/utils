@@ -3,7 +3,8 @@ using UnityEngine;
 
 namespace REDIZIT.RUI
 {
-    public class ScrollView : CanvasComponent, IPointerScrollHandler, IPointerDownHandler, IPointerMoveHandler, IPointerUpHandler, ILayoutSolver
+    // public class ScrollView : CanvasComponent, IPointerScrollHandler, IPointerDownHandler, IPointerMoveHandler, IPointerUpHandler, ILayoutSolver
+    public class ScrollView : CanvasComponent, IPointerScrollHandler, IPointerDownHandler, IPointerMoveHandler, IPointerUpHandler
     {
         public float speed = 48f;
         public float scrollPosition = 0f;
@@ -80,19 +81,19 @@ namespace REDIZIT.RUI
             }
         }
 
-        public void Solve(SizeConstraints constraints)
-        {
-	        // Debug.Log($"Scroll constraints: {constraints}");
-
-	        SizeConstraints contentConstraints = new()
-	        {
-		        maxX = Transform.size.x,
-		        maxY = null
-	        };
-	        // Debug.Log($"Scroll content constraints: {contentConstraints}");
-	        
-	        Element.SolveChildren(contentConstraints);
-	        ApplyPosition();
-        }
+        // public void Solve(SizeConstraints constraints)
+        // {
+	       //  // Debug.Log($"Scroll constraints: {constraints}");
+        //
+	       //  SizeConstraints contentConstraints = new()
+	       //  {
+		      //   maxX = Transform.size.x,
+		      //   maxY = null
+	       //  };
+	       //  // Debug.Log($"Scroll content constraints: {contentConstraints}");
+	       //  
+	       //  Element.SolveChildren(contentConstraints);
+	       //  ApplyPosition();
+        // }
     }
 }

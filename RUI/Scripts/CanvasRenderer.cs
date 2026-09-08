@@ -6,6 +6,7 @@ using Unity.Mathematics;
 using UnityEditor;
 using UnityEngine;
 using Zenject;
+using Debug = UnityEngine.Debug;
 
 namespace REDIZIT.RUI
 {
@@ -125,8 +126,15 @@ namespace REDIZIT.RUI
 				// 2. Layout pass
 				Stopwatch w2 = Stopwatch.StartNew();
 				float2 screenSize = new(Screen.width, Screen.height);
-				SizeConstraints constraints = new(0, 0, screenSize.x, screenSize.y);
-				root.Solve(constraints);
+				SizeConstraints constraints = new()
+				{
+					x = AxisConstraints.LessOrEqual(screenSize.x),
+					y = AxisConstraints.LessOrEqual(screenSize.y),
+				};
+				Debug.Log($"Measure root: {constraints} at: {root.measurable}");
+				DesiredSize desiredSize = root.measurable.Measure(constraints);
+				DesiredSize clampedSize = constraints.Clamp(desiredSize);
+				root.composer.Arrange(new(clampedSize.x, clampedSize.y));
 				w2.Stop();
 		        
 				// 3. Render pass

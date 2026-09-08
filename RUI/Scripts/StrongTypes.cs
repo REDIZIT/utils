@@ -13,18 +13,20 @@ namespace REDIZIT.RUI
 		}
 	}
 
-	public struct PreferredSize
+	public struct DesiredSize
 	{
-		public float2 size;
+		public float x, y;
 
-		public PreferredSize(float x, float y)
+		public DesiredSize(float x, float y)
 		{
-			size = new(x, y);
+			this.x = x;
+			this.y = y;
 		}
 		
-		public PreferredSize(float2 size)
+		public DesiredSize(float2 size)
 		{
-			this.size = size;
+			x = size.x;
+			y = size.y;
 		}
 	}
 
@@ -45,8 +47,11 @@ namespace REDIZIT.RUI
 		public float2 size;
 		public float angle;
 		public float2 scale;
-		public Matrix4x4 localToParent;
 
+		public Matrix4x4 LocalToParent => localToParent;
+		
+		private Matrix4x4 localToParent;
+		
 		public ResolvedTransform(float2 pos, float2 size)
 		{
 			this.pos = pos;

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -9,14 +10,14 @@ namespace REDIZIT.RUI
     {
         public string key;
         public CanvasElement parent;
-        public CanvasTransform transform = new();
+        // public CanvasTransform transform = new();
         public int layerOffset = 0;
 
         public Action onTreeDirty;
         
         public CanvasService service;
         public CanvasReconciler reconciler;
-        
+        public ResolvedTransform transform;
         
         private readonly List<CanvasElement> children = new();
         private readonly List<CanvasComponent> components = new();
@@ -33,6 +34,9 @@ namespace REDIZIT.RUI
 		        MarkDirty();
 	        }
         }
+
+        public IMeasurable measurable => components.OfType<IMeasurable>().First();
+        public IComposer composer => components.OfType<IComposer>().First();
         
         public IReadOnlyCollection<CanvasElement> Children => children;
         public IReadOnlyCollection<CanvasComponent> Components => components;
@@ -122,59 +126,6 @@ namespace REDIZIT.RUI
                 return parent.LocalToRoot * transform.LocalToParent;
             }
         }
-
-        public void Solve(SizeConstraints constraints)
-        {
-	        ILayoutSolver? solver = null;
-	        foreach (CanvasComponent comp in components)
-	        {
-		        if (comp is ILayoutSolver s)
-		        {
-			        solver = s;
-			        break;
-		        }
-	        }
-
-	        if (solver != null)
-	        {
-		        solver.Solve(constraints);
-	        }
-	        else
-	        {
-		        SolveChildren(constraints);
-	        }
-        }
-
-        public void SolveChildren(SizeConstraints? containerConstraints = null)
-        {
-	        containerConstraints ??= new(transform.size);
-	        
-	        foreach (CanvasElement child in children)
-	        {
-		        child.Solve(containerConstraints.Value);
-	        }
-        }
-        
-        public bool TryMeasure(SizeConstraints constraints, out PreferredSize preferredSize)
-        {
-	        foreach (CanvasComponent comp in components)
-	        {
-		        if (comp is IMeasurable m)
-		        {
-			        preferredSize = m.Measure(constraints);
-			        return true;
-		        }
-	        }
-	        
-	        foreach (CanvasElement child in children)
-	        {
-		        if (child.TryMeasure(constraints, out preferredSize)) return true;
-	        }
-
-	        preferredSize = default;
-	        return false;
-        }
-
 
         public void UpdateTree()
         {

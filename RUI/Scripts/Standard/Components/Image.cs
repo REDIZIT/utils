@@ -98,6 +98,8 @@ namespace REDIZIT.RUI
 
         public override void GenerateMesh(CanvasGenerationContext ctx)
         {
+	        Debug.Log("Generate image m");
+	        
 	        if (isEnabled == false) return;
 	        
             Material targetMat = spriteMaterialInstance != null ? spriteMaterialInstance : material;
@@ -179,7 +181,7 @@ namespace REDIZIT.RUI
             }
         }
 
-        public PreferredSize Measure(SizeConstraints constraints)
+        public DesiredSize Measure(SizeConstraints constraints)
         {
 	        return new(32, 32);
         }
