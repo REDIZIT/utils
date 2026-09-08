@@ -134,8 +134,11 @@ namespace REDIZIT.RUI
 				root.Measure(constraints);
 				root.Arrange(new(0, screenSize));
 				w2.Stop();
-				
-				Debug.Log(root.PrintTree());
+
+				if (logger.IsEnabled(LogLevel.Debug))
+				{
+					logger.LogDebug(root.PrintTree());
+				}
 		        
 				// 3. Render pass
 				Stopwatch w3 = Stopwatch.StartNew();

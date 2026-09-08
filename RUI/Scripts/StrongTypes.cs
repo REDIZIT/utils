@@ -51,6 +51,11 @@ namespace REDIZIT.RUI
 		{
 			return new(rect.pos, rect.size, 0, 1);
 		}
+		
+		public static ResolvedTransform FromRect(ArrangeRect rect, float angle, float2 scale)
+		{
+			return new(rect.pos, rect.size, angle, scale);
+		}
 
 		private void RecalculateMatrix()
 		{

@@ -36,9 +36,6 @@ namespace REDIZIT.RUI
 		        MarkDirty();
 	        }
         }
-
-        private IMeasurable measurable => components.OfType<IMeasurable>().First();
-        private IComposer composer => components.OfType<IComposer>().First();
         
         public IReadOnlyCollection<CanvasElement> Children => children;
         public IReadOnlyCollection<CanvasComponent> Components => components;
@@ -87,39 +84,41 @@ namespace REDIZIT.RUI
 
         public void Arrange(ArrangeRect rect)
         {
-	        transform = ResolvedTransform.FromRect(rect);
-    
-	        IComposer c = components.OfType<IComposer>().FirstOrDefault();
-	        if (c != null)
+	        // 1. Вычисляем трансформацию с учетом VisualTransform (если есть)
+	        VisualTransform vt = TryGetComponent<VisualTransform>();
+	        if (vt != null)
 	        {
-		        c.Arrange(rect);
+		        transform = ResolvedTransform.FromRect(rect, vt.angle, vt.scale);
 	        }
-	        else if (children.Any())
+	        else
 	        {
-		        // Default Layout: все дети в точке (0,0) с размером родителя
-		        ArrangeRect childRect = new ArrangeRect(float2.zero, rect.size);
-		        foreach (var child in children)
+		        transform = ResolvedTransform.FromRect(rect);
+	        }
+
+	        // 2. Размещаем детей
+	        if (children.Count > 0)
+	        {
+		        // Ищем IComposer безопасно через FirstOrDefault, а не First!
+		        IComposer c = components.OfType<IComposer>().FirstOrDefault();
+
+		        if (c != null)
 		        {
-			        child.Arrange(childRect);
+			        // Если есть композитор — он решает, как расставить детей
+			        c.Arrange(rect);
+		        }
+		        else
+		        {
+			        // ДЕФОЛТНЫЙ ARRANGE: если композитора нет,
+			        // дети занимают весь слот родителя в локальных координатах (0, 0)
+			        ArrangeRect defaultChildRect = new ArrangeRect(Unity.Mathematics.float2.zero, rect.size);
+			        foreach (CanvasElement child in children)
+			        {
+				        if (!child.isEnabled) continue;
+				        child.Arrange(defaultChildRect);
+			        }
 		        }
 	        }
         }
-
-        // public DesiredSize Measure(SizeConstraints constraints)
-        // {
-	       //  Debug.Log($"Measure: {GetPath()}");
-	       //  DesiredSize = measurable.Measure(constraints);
-	       //  return DesiredSize;
-        // }
-        //
-        // public void Arrange(ArrangeRect rect)
-        // {
-	       //  transform = ResolvedTransform.FromRect(rect);
-	       //  Debug.Log($"Set transform {GetPath()} = {transform}");
-	       //  
-	       //  // if (Children.Any()) composer.Arrange(rect);
-	       //  if (Children.Any()) composer.Arrange(new(0, rect.size));
-        // }
 
         public void MarkDirty()
         {
