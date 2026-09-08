@@ -32,8 +32,6 @@ namespace REDIZIT.RUI
 		{
 			bool isVertical = axis == StackAxis.Vertical;
 			
-			Debug.Log("isVertical? " + isVertical);
-
 			float padMain = isVertical ? (padding.y + padding.w) : (padding.x + padding.z);
 			float padCross = isVertical ? (padding.x + padding.z) : (padding.y + padding.w);
 
