@@ -10,21 +10,20 @@ using Debug = UnityEngine.Debug;
 
 namespace REDIZIT.RUI
 {
-	[ExecuteAlways]
 	public class CanvasRenderer : MonoBehaviour
 	{
 		public static CanvasRenderer Instance { get; set; }
 
 		public Material combinedMaterial;
-
-		[Header("Главный файл экрана")]
 		public TextAsset rootFile;
 
 		private Material textMaterial;
 
 		public readonly CanvasGenerationContext context = new();
-		public CanvasElement root;
-		public bool isDirty = true;
+		
+		private CanvasElement root;
+		private bool isDirty = true;
+		private Camera cam;
 		
 		private float2 lastScreenSize;
 		private string rootFilePath;
@@ -42,6 +41,8 @@ namespace REDIZIT.RUI
 
 		public void Start()
 		{
+			cam = Camera.main;
+			
 			if (canvasService == null || rootFile == null || assetDatabase == null) return;
 
 			InitResources();
@@ -113,11 +114,11 @@ namespace REDIZIT.RUI
 			if (root == null) return;
 
 			// 1. Отслеживаем изменение размера Game View или разрешения экрана:
-			float2 currentScreenSize = new float2(Screen.width, Screen.height);
+			float2 currentScreenSize = GetScreenSize();
 			if (!math.all(currentScreenSize == lastScreenSize))
 			{
 				lastScreenSize = currentScreenSize;
-				MarkDirty(); // Если разрешение изменилось — принудительно перестраиваем UI
+				MarkDirty();
 			}
 
 			// 2. Update pass
@@ -155,6 +156,13 @@ namespace REDIZIT.RUI
 	        
 				isDirty = false;
 			}
+		}
+		
+		private float2 GetScreenSize()
+		{
+			// Use camera screen size instead of Screen.width/height
+			// due to unstable behaviour while using EditorGUI functions
+			return new(cam.pixelWidth, cam.pixelHeight);
 		}
 	}
 }
