@@ -6,38 +6,36 @@ namespace REDIZIT.RUI
 	public class SizedBox_Composer : CanvasComponent, IMeasurable, IComposer
 	{
 		public float2 size;
-		
+
 		public DesiredSize Measure(SizeConstraints constraints)
 		{
-			// 1. SizedBox навязывает свой размер (учитывая ограничения родителя)
-			DesiredSize mySize = constraints.Clamp(new(size));
-			
-			// 2. Создаем строгие ограничения (Tight Constraints) для детей.
-			// Ребенок ДОЛЖЕН быть размером с этот SizedBox (или меньше, если вы так решите).
-			SizeConstraints childConstraints = new SizeConstraints
-			{
-				x = AxisConstraints.Equal(mySize.x), // Вам нужно добавить метод Exactly(float v)
-				y = AxisConstraints.Equal(mySize.y)
-			};
+			// 1. Измеряем детей в рамках ограничений родителя
+			float childMaxW = 0;
+			float childMaxH = 0;
 
-			// 3. Обязательно просим детей измерить себя!
 			foreach (CanvasElement child in Element.Children)
 			{
-				child.Measure(childConstraints);
+				if (!child.isEnabled) continue;
+				DesiredSize childSize = child.Measure(constraints);
+				childMaxW = math.max(childMaxW, childSize.x);
+				childMaxH = math.max(childMaxH, childSize.y);
 			}
 
-			// 4. Возвращаем свой размер наверх
-			return mySize;
+			// Если в свойстве задано > 0, фиксируем его. Иначе берем размер детей
+			float desiredW = size.x > 0 ? size.x : childMaxW;
+			float desiredH = size.y > 0 ? size.y : childMaxH;
+
+			return constraints.Clamp(new DesiredSize(desiredW, desiredH));
 		}
-		
+
 		public void Arrange(ArrangeRect finalRect)
 		{
-			// SizedBox позиционирует детей ровно по своим границам.
-			// Локальная позиция детей внутри SizedBox равна (0, 0)
-			ArrangeRect childRect = new ArrangeRect(0, finalRect.size);
-			
+			// Передаем детям размер, выделенный элементу родителем
+			ArrangeRect childRect = new ArrangeRect(float2.zero, finalRect.size);
+
 			foreach (CanvasElement child in Element.Children)
 			{
+				if (!child.isEnabled) continue;
 				child.Arrange(childRect);
 			}
 		}

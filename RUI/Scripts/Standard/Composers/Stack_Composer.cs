@@ -13,15 +13,23 @@ namespace REDIZIT.RUI
 
 	public enum CrossFill
 	{
-		None,   // Дети сохраняют свой собственный DesiredSize по cross-оси
-		Child,  // Стек подгоняется под самого крупного ребенка (hug), все дети растягиваются под него
-		Parent  // Стек занимает весь доступный размер родителя, все дети растягиваются на всю ширину/высоту
+		None,
+		Child,
+		Parent
+	}
+
+	public enum StackAlign
+	{
+		Start,  // По умолчанию: сверху для Vertical, слева для Horizontal
+		Center, // По центру главной оси
+		End     // Снизу для Vertical, справа (snap=End) для Horizontal
 	}
 
 	public class Stack_Composer : CanvasComponent, IMeasurable, IComposer
 	{
 		public StackAxis axis = StackAxis.Vertical;
 		public CrossFill fillCross = CrossFill.None;
+		public StackAlign alignMain = StackAlign.Start;
 		public float spacing = 0f;
 		public float4 padding = 0f; // x: left, y: top, z: right, w: bottom
 		public bool reverse = false;
@@ -31,17 +39,13 @@ namespace REDIZIT.RUI
 		public DesiredSize Measure(SizeConstraints constraints)
 		{
 			bool isVertical = axis == StackAxis.Vertical;
-			
+
 			float padMain = isVertical ? (padding.y + padding.w) : (padding.x + padding.z);
 			float padCross = isVertical ? (padding.x + padding.z) : (padding.y + padding.w);
 
-			// 1. Уменьшаем ограничения родителя на размер padding для контента
 			SizeConstraints innerConstraints = constraints;
 			innerConstraints.Shrink(padding.x + padding.z, padding.y + padding.w);
 
-			// 2. Формируем ограничения для детей:
-			// Main-ось всегда неограничена (Unlimited)
-			// Cross-ось транслирует оставшееся место
 			SizeConstraints childConstraints = new()
 			{
 				x = isVertical ? innerConstraints.x : AxisConstraints.Unlimited(),
@@ -52,7 +56,6 @@ namespace REDIZIT.RUI
 			float totalMain = 0f;
 			int visibleCount = 0;
 
-			// 3. Измеряем детей
 			foreach (CanvasElement child in Element.Children)
 			{
 				if (!child.isEnabled) continue;
@@ -73,7 +76,6 @@ namespace REDIZIT.RUI
 
 			cachedMaxChildCross = maxChildCross;
 
-			// 4. Определяем желаемый размер контента по Cross-оси в зависимости от режима fillCross
 			float desiredCross = maxChildCross;
 			if (fillCross == CrossFill.Parent)
 			{
@@ -84,7 +86,6 @@ namespace REDIZIT.RUI
 				}
 			}
 
-			// 5. Суммируем с padding и зажимаем в исходные ограничения родителя
 			float finalDesiredWidth = isVertical ? (desiredCross + padCross) : (totalMain + padMain);
 			float finalDesiredHeight = isVertical ? (totalMain + padMain) : (desiredCross + padCross);
 
@@ -95,26 +96,61 @@ namespace REDIZIT.RUI
 		{
 			bool isVertical = axis == StackAxis.Vertical;
 
-			// Правило инверсии: при Horizontal равен reverse, при Vertical = !reverse
-			bool shouldReverse = isVertical ? !reverse : reverse;
+			IList<CanvasElement> childrenList = Element.Children as IList<CanvasElement> ?? Element.Children.ToList();
+			int count = childrenList.Count;
 
-			float padCrossStart = isVertical ? padding.x : padding.y;
-			float padMainStart = isVertical ? padding.y : padding.x;
+			// 1. Считаем суммарную длину всех видимых детей вдоль главной оси для расчета выравнивания (alignMain)
+			float totalChildrenMain = 0f;
+			int visibleCount = 0;
+			for (int i = 0; i < count; i++)
+			{
+				CanvasElement child = childrenList[i];
+				if (!child.isEnabled) continue;
+				float childMain = isVertical ? child.DesiredSize.y : child.DesiredSize.x;
+				totalChildrenMain += childMain;
+				visibleCount++;
+			}
+			if (visibleCount > 1) totalChildrenMain += spacing * (visibleCount - 1);
 
-			// Доступное контенту пространство по поперечной оси
+			// 2. Расчет доступного пространства
+			float padCrossStart = isVertical ? padding.x : padding.w; // w: отступ снизу для Horizontal
 			float contentCrossSize = isVertical
 				? math.max(0f, finalRect.size.x - (padding.x + padding.z))
 				: math.max(0f, finalRect.size.y - (padding.y + padding.w));
 
-			float currentMain = padMainStart;
+			float availableMain = isVertical
+				? math.max(0f, finalRect.size.y - (padding.y + padding.w))
+				: math.max(0f, finalRect.size.x - (padding.x + padding.z));
 
-			// Итерация без лишних аллокаций памяти (List<T> реализует IList<T>)
-			IList<CanvasElement> childrenList = Element.Children as IList<CanvasElement> ?? Element.Children.ToList();
-			int count = childrenList.Count;
+			float freeMainSpace = math.max(0f, availableMain - totalChildrenMain);
 
+			// 3. Начальная позиция курсора с учетом alignMain
+			float currentMain;
+			if (isVertical)
+			{
+				// Для вертикали Y=0 внизу, поэтому верх — это (finalRect.size.y - padding.y)
+				float topStart = finalRect.size.y - padding.y;
+
+				if (alignMain == StackAlign.Center) topStart -= freeMainSpace * 0.5f;
+				else if (alignMain == StackAlign.End) topStart -= freeMainSpace; // Прижать к низу
+
+				currentMain = topStart;
+			}
+			else
+			{
+				// Для горизонтали X=0 слева, поэтому левый край — это padding.x
+				float leftStart = padding.x;
+
+				if (alignMain == StackAlign.Center) leftStart += freeMainSpace * 0.5f;
+				else if (alignMain == StackAlign.End) leftStart += freeMainSpace; // Прижать к правому краю (snap=End)
+
+				currentMain = leftStart;
+			}
+
+			// 4. Размещение детей
 			for (int i = 0; i < count; i++)
 			{
-				int index = shouldReverse ? (count - 1 - i) : i;
+				int index = reverse ? (count - 1 - i) : i;
 				CanvasElement child = childrenList[index];
 
 				if (!child.isEnabled) continue;
@@ -136,17 +172,30 @@ namespace REDIZIT.RUI
 						break;
 				}
 
-				float2 childPos = isVertical
-					? new float2(padCrossStart, currentMain)
-					: new float2(currentMain, padCrossStart);
+				float2 childPos;
+				float2 childSize;
 
-				float2 childSize = isVertical
-					? new float2(childCross, childMain)
-					: new float2(childMain, childCross);
+				if (isVertical)
+				{
+					// Опускаем курсор вниз на высоту текущего элемента
+					currentMain -= childMain;
+
+					childPos = new float2(padCrossStart, currentMain);
+					childSize = new float2(childCross, childMain);
+
+					// Сдвигаем курсор дальше вниз с учетом spacing
+					currentMain -= spacing;
+				}
+				else
+				{
+					childPos = new float2(currentMain, padCrossStart);
+					childSize = new float2(childMain, childCross);
+
+					// Сдвигаем курсор вправо с учетом spacing
+					currentMain += childMain + spacing;
+				}
 
 				child.Arrange(new ArrangeRect(childPos, childSize));
-
-				currentMain += childMain + spacing;
 			}
 		}
 	}

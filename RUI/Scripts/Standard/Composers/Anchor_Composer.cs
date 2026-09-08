@@ -1,4 +1,5 @@
 ﻿using Unity.Mathematics;
+using UnityEngine;
 
 namespace REDIZIT.RUI
 {
@@ -21,10 +22,9 @@ namespace REDIZIT.RUI
 				Anchor anchor = child.TryGetComponent<Anchor>();
 				SizeConstraints childConstraints = constraints;
 
-				// Если у ребенка есть Anchor, вычисляем жесткие ограничения под него
 				if (anchor != null)
 				{
-					// По оси X:
+					// X
 					if (anchor.width.HasValue)
 					{
 						childConstraints.x = AxisConstraints.Equal(anchor.width.Value);
@@ -40,7 +40,7 @@ namespace REDIZIT.RUI
 						childConstraints.x.Shrink(padX);
 					}
 
-					// По оси Y:
+					// Y
 					if (anchor.height.HasValue)
 					{
 						childConstraints.y = AxisConstraints.Equal(anchor.height.Value);
@@ -62,7 +62,6 @@ namespace REDIZIT.RUI
 				maxChildH = math.max(maxChildH, childSize.y);
 			}
 
-			// Как оверлейный контейнер, стремимся занять максимум доступного места
 			float desiredW = hasMaxW ? maxAvailableW : maxChildW;
 			float desiredH = hasMaxH ? maxAvailableH : maxChildH;
 
@@ -77,7 +76,6 @@ namespace REDIZIT.RUI
 
 				Anchor a = child.TryGetComponent<Anchor>();
 
-				// По умолчанию (если нет Anchor) — элемент занимает весь экран (как ContextMenus)
 				float x = 0f;
 				float w = finalRect.size.x;
 				float y = 0f;
@@ -85,7 +83,7 @@ namespace REDIZIT.RUI
 
 				if (a != null)
 				{
-					// 1. Горизонтальная ось (X и Width)
+					// 1. Ось X (слева направо)
 					if (a.left.HasValue && a.right.HasValue)
 					{
 						x = a.left.Value;
@@ -117,31 +115,31 @@ namespace REDIZIT.RUI
 						w = a.width.Value;
 					}
 
-					// 2. Вертикальная ось (Y и Height)
-					if (a.top.HasValue && a.bottom.HasValue)
+					// 2. Ось Y (снизу вверх: Y=0 это НИЗ)
+					if (a.bottom.HasValue && a.top.HasValue)
 					{
-						y = a.top.Value;
+						y = a.bottom.Value; // Начинаем от нижнего края
 						h = math.max(0f, finalRect.size.y - a.top.Value - a.bottom.Value);
-					}
-					else if (a.top.HasValue && a.height.HasValue)
-					{
-						y = a.top.Value;
-						h = a.height.Value;
 					}
 					else if (a.bottom.HasValue && a.height.HasValue)
 					{
+						y = a.bottom.Value;
 						h = a.height.Value;
-						y = finalRect.size.y - a.bottom.Value - h;
 					}
-					else if (a.top.HasValue)
+					else if (a.top.HasValue && a.height.HasValue)
 					{
-						y = a.top.Value;
-						h = a.height ?? child.DesiredSize.y;
+						h = a.height.Value;
+						y = finalRect.size.y - a.top.Value - h; // Смещение от верха
 					}
 					else if (a.bottom.HasValue)
 					{
+						y = a.bottom.Value;
 						h = a.height ?? child.DesiredSize.y;
-						y = finalRect.size.y - a.bottom.Value - h;
+					}
+					else if (a.top.HasValue)
+					{
+						h = a.height ?? child.DesiredSize.y;
+						y = finalRect.size.y - a.top.Value - h;
 					}
 					else if (a.height.HasValue)
 					{

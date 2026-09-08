@@ -28,18 +28,15 @@ namespace REDIZIT.RUI
 	        }
 
 	        // 2. ДОСОЗДАЕМ ТОЛЬКО НЕДОСТАЮЩИЕ (если список вырос)
-	        // Если в прошлый раз уже было создано 600 элементов, этот цикл сделает 0 итераций!
 	        for (int i = currentCount; i < targetCount; i++)
 	        {
-		        CanvasElement lotElement = new CanvasElement { parent = Element, service = canvasService, reconciler = reconciler };
+		        // ВАЖНО: Spawn(..., Element) уже прикрепляет созданный узел к Element!
+		        reconciler.Spawn(canvasTemplate, Element);
         
-		        reconciler.Reconcile(lotElement, canvasTemplate.templateAst);
-		        reconciler.PostProcessBindings(lotElement);
-
-		        Element.AddChild(lotElement);
+		        // Element.AddChild(lotElement); <--- ЭТУ СТРОКУ УДАЛЯЕМ!
 	        }
 
-	        // 3. МГНОВЕННОЕ ОБНОВЛЕНИЕ ДАННЫХ В ПУЛЕ
+	        // 3. МГНОВЕННОЕ ОБНОВЛЕНИЕ ДАННЫХ В ПУЛЕ (теперь ровно 1 к 1)
 	        for (int i = 0; i < targetCount; i++)
 	        {
 		        var lot = Element.Children.ElementAt(i).TryGetComponent<TLot>();

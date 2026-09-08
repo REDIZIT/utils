@@ -45,25 +45,43 @@ namespace REDIZIT.RUI
         
         public DesiredSize Measure(SizeConstraints constraints)
         {
-	        IMeasurable m = components.OfType<IMeasurable>().FirstOrDefault();
-	        if (m != null)
+	        // 1. Приоритет композиторам (Stack_Composer, Fill_Composer, SizedBox_Composer, Anchor_Composer):
+	        IMeasurable composer = components.OfType<IMeasurable>().FirstOrDefault(c => c is IComposer);
+	        if (composer != null)
 	        {
-		        DesiredSize = m.Measure(constraints);
+		        DesiredSize = composer.Measure(constraints);
+		        return DesiredSize;
 	        }
-	        else
+
+	        // 2. Если композитора нет, но ЕСТЬ ДЕТИ:
+	        // Контейнер (например MyHierarchy с фоновой картинкой) ОБЯЗАН измерить детей!
+	        if (children.Count > 0)
 	        {
-		        // Дефолтный Measure: максимальный размер детей
 		        float childMaxWidth = 0;
 		        float childMaxHeight = 0;
+
 		        foreach (var child in children)
 		        {
+			        if (!child.isEnabled) continue;
 			        var size = child.Measure(constraints);
 			        childMaxWidth = math.max(childMaxWidth, size.x);
 			        childMaxHeight = math.max(childMaxHeight, size.y);
 		        }
+
 		        DesiredSize = constraints.Clamp(new DesiredSize(childMaxWidth, childMaxHeight));
+		        return DesiredSize;
 	        }
 
+	        // 3. Если детей нет — это листовой элемент (Image, Label и т.д.):
+	        IMeasurable leaf = components.OfType<IMeasurable>().FirstOrDefault();
+	        if (leaf != null)
+	        {
+		        DesiredSize = leaf.Measure(constraints);
+		        return DesiredSize;
+	        }
+
+	        // 4. Пустой узел
+	        DesiredSize = constraints.Clamp(new DesiredSize(0, 0));
 	        return DesiredSize;
         }
 
