@@ -3,59 +3,58 @@ using UnityEngine;
 
 namespace REDIZIT.RUI
 {
-	public struct SolveContext
+	public struct DesiredSize
 	{
-		public float2 containerSize;
+		public float x, y;
 
-		public SolveContext(float x, float y)
+		public DesiredSize(float x, float y)
 		{
-			containerSize = new(x, y);
-		}
-	}
-
-	public struct PreferredSize
-	{
-		public float2 size;
-
-		public PreferredSize(float x, float y)
-		{
-			size = new(x, y);
+			this.x = x;
+			this.y = y;
 		}
 		
-		public PreferredSize(float2 size)
+		public DesiredSize(float2 size)
 		{
-			this.size = size;
+			x = size.x;
+			y = size.y;
+		}
+
+		public override string ToString()
+		{
+			return $"({x}; {y})";
 		}
 	}
 
-	public struct SolvedSize
-	{
-		public float2 size;
-
-		public SolvedSize(float2 size)
-		{
-			this.size = size;
-		}
-	}
-	
-	
 	public struct ResolvedTransform
 	{
 		public float2 pos;
 		public float2 size;
 		public float angle;
 		public float2 scale;
-		public Matrix4x4 localToParent;
 
-		public ResolvedTransform(float2 pos, float2 size)
+		public Matrix4x4 LocalToParent => localToParent;
+		
+		private Matrix4x4 localToParent;
+		
+		private ResolvedTransform(float2 pos, float2 size, float angle, float2 scale)
 		{
 			this.pos = pos;
 			this.size = size;
-			angle = 0;
-			scale = 1;
+			this.angle = angle;
+			this.scale = scale;
 			localToParent = default;
 			
 			RecalculateMatrix();
+		}
+
+		public static ResolvedTransform FromRect(ArrangeRect rect)
+		{
+			return new(rect.pos, rect.size, 0, 1);
+		}
+		
+		public static ResolvedTransform FromRect(ArrangeRect rect, float angle, float2 scale)
+		{
+			return new(rect.pos, rect.size, angle, scale);
 		}
 
 		private void RecalculateMatrix()
@@ -76,6 +75,12 @@ namespace REDIZIT.RUI
 
 				localToParent = trs * invCenter;
 			}
+		}
+
+		public override string ToString()
+		{
+			// return $"(pos: {pos}, size: {size}, angle: {angle}, scale: {scale})";
+			return $"(localPos: {pos.x}x{pos.y}, size: {size.x}x{size.y})";
 		}
 	}
 }

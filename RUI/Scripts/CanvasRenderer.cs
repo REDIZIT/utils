@@ -6,32 +6,33 @@ using Unity.Mathematics;
 using UnityEditor;
 using UnityEngine;
 using Zenject;
+using Debug = UnityEngine.Debug;
 
 namespace REDIZIT.RUI
 {
-	[ExecuteAlways]
 	public class CanvasRenderer : MonoBehaviour
 	{
 		public static CanvasRenderer Instance { get; set; }
 
 		public Material combinedMaterial;
-
-		[Header("Главный файл экрана")]
 		public TextAsset rootFile;
 
 		private Material textMaterial;
 
 		public readonly CanvasGenerationContext context = new();
-		public CanvasElement root;
-		public bool isDirty = true;
+		
+		private CanvasElement root;
+		private bool isDirty = true;
+		private Camera cam;
+		
+		private float2 lastScreenSize;
+		private string rootFilePath;
 
 		[Inject] private CanvasService canvasService;
 		[Inject] private Assets assetDatabase;
 		[Inject] private CanvasReconciler reconciler;
 		[Inject] private CanvasInputManager inputManager;
 		[Inject] private ILogger<CanvasRenderer> logger;
-
-		private string rootFilePath;
 
 		public void OnEnable()
 		{
@@ -40,6 +41,8 @@ namespace REDIZIT.RUI
 
 		public void Start()
 		{
+			cam = Camera.main;
+			
 			if (canvasService == null || rootFile == null || assetDatabase == null) return;
 
 			InitResources();
@@ -110,7 +113,15 @@ namespace REDIZIT.RUI
 
 			if (root == null) return;
 
-			// 1. Update pass
+			// 1. Отслеживаем изменение размера Game View или разрешения экрана:
+			float2 currentScreenSize = GetScreenSize();
+			if (!math.all(currentScreenSize == lastScreenSize))
+			{
+				lastScreenSize = currentScreenSize;
+				MarkDirty();
+			}
+
+			// 2. Update pass
 			Stopwatch w = Stopwatch.StartNew();
 			Stopwatch w1 = Stopwatch.StartNew();
 			if (Application.isPlaying)
@@ -122,25 +133,36 @@ namespace REDIZIT.RUI
 
 			if (isDirty)
 			{
-				// 2. Layout pass
+				// 3. Layout pass
 				Stopwatch w2 = Stopwatch.StartNew();
-				float2 screenSize = new(Screen.width, Screen.height);
-				SizeConstraints constraints = new(0, 0, screenSize.x, screenSize.y);
-				root.Solve(constraints);
+				SizeConstraints constraints = new()
+				{
+					x = AxisConstraints.LessOrEqual(currentScreenSize.x),
+					y = AxisConstraints.LessOrEqual(currentScreenSize.y),
+				};
+				root.Measure(constraints);
+				root.Arrange(new(0, currentScreenSize));
 				w2.Stop();
-		        
-				// 3. Render pass
+	        
+				// 4. Render pass
 				Stopwatch w3 = Stopwatch.StartNew();
 				context.Clear();
 				root.RenderTree(context);
 				context.FinalizeBatches();
 				w3.Stop();
 				w.Stop();
-		        
+	        
 				logger.LogDebug($"Canvas built in {w.ElapsedMilliseconds} ms (update: {w1.ElapsedMilliseconds}, layout: {w2.ElapsedMilliseconds}, render: {w3.ElapsedMilliseconds})");
-		        
+	        
 				isDirty = false;
 			}
+		}
+		
+		private float2 GetScreenSize()
+		{
+			// Use camera screen size instead of Screen.width/height
+			// due to unstable behaviour while using EditorGUI functions
+			return new(cam.pixelWidth, cam.pixelHeight);
 		}
 	}
 }

@@ -179,9 +179,10 @@ namespace REDIZIT.RUI
             }
         }
 
-        public PreferredSize Measure(SizeConstraints constraints)
+        public DesiredSize Measure(SizeConstraints constraints)
         {
-	        return new(32, 32);
+	        // Если есть спрайт — берем его реальный размер, иначе 0
+	        return constraints.Clamp(new DesiredSize(GetPreferredSize()));
         }
     }
 }

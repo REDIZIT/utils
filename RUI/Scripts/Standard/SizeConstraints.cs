@@ -4,77 +4,25 @@ namespace REDIZIT.RUI
 {
 	public struct SizeConstraints
 	{
-		public float? minX;
-		public float? minY;
-		public float? maxX;
-		public float? maxY;
+		public AxisConstraints x, y;
 
-		public SizeConstraints(float2 size)
+		public DesiredSize Clamp(DesiredSize desiredSize)
 		{
-			minX = null;
-			minY = null;
-			maxX = size.x;
-			maxY = size.y;
-		}
-		
-		public SizeConstraints(float? minX, float? minY, float? maxX, float? maxY)
-		{
-			this.minX = minX;
-			this.minY = minY;
-			this.maxX = maxX;
-			this.maxY = maxY;
+			desiredSize.x = x.Clamp(desiredSize.x);
+			desiredSize.y = y.Clamp(desiredSize.y);
+			return desiredSize;
 		}
 
-		public float? GetMax(int index) => index == 0 ? maxX : maxY;
-		public float? GetMin(int index) => index == 0 ? minX : minY;
-
-		public void ClampMax(int index, float v)
+		public void Shrink(float2 delta) => Shrink(delta.x, delta.y);
+		public void Shrink(float deltaX, float deltaY)
 		{
-			if (index == 0)
-			{
-				if (maxX.HasValue) maxX = math.min(maxX.Value, v);
-				else maxX = v;
-			}
-			else
-			{
-				if (maxY.HasValue) maxY = math.min(maxY.Value, v);
-				else maxY = v;
-			}
-		}
-
-		public void SetMax(int index, float? v)
-		{
-			if (index == 0) maxX = v;
-			else maxY = v;
-		}
-		
-		public void SetMin(int index, float? v)
-		{
-			if (index == 0) minX = v;
-			else minY = v;
-		}
-
-		public PreferredSize Clamp(PreferredSize size)
-		{
-			return new(Clamp(size.size));
-		}
-		
-		public float2 Clamp(float2 size)
-		{
-			float x = size.x;
-			if (minX.HasValue && x < minX.Value) x = minX.Value;
-			if (maxX.HasValue && x > maxX.Value) x = maxX.Value;
-
-			float y = size.y;
-			if (minY.HasValue && y < minY.Value) y = minY.Value;
-			if (maxY.HasValue && y > maxY.Value) y = maxY.Value;
-
-			return new(x, y);
+			x.Shrink(deltaX);
+			y.Shrink(deltaY);
 		}
 
 		public override string ToString()
 		{
-			return $"(min: ({minX?.ToString() ?? "none"}, {minY?.ToString() ?? "none"}), max: ({maxX?.ToString() ?? "none"}, {maxY?.ToString() ?? "none"}))";
+			return $"(x: {x}, y: {y})";
 		}
 	}
 }

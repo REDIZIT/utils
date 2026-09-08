@@ -69,7 +69,6 @@ namespace REDIZIT.RUI
         {
 	        logger.LogDebug($"ApplyElementProperty '{e.key}' with {prop.name}");
 	        
-	        CanvasTransform t = e.transform;
 	        Node_Expression expr = prop.value;
 
 	        switch (prop.name)
@@ -78,53 +77,12 @@ namespace REDIZIT.RUI
 			        e.isEnabled = EvaluateValue<bool>(expr);
 			        break;
 		        
-		        case "size":
-			        if (expr is Node_TupleLiteral tuple && tuple.elements.Count >= 2)
-			        {
-				        t.size.x = ParseDimension(tuple.elements[0]);
-				        t.size.y = ParseDimension(tuple.elements[1]);
-			        }
-			        else
-			        {
-				        float dim = ParseDimension(expr);
-				        t.size.x = dim;
-				        t.size.y = dim;
-			        }
-			        break;
-		        
-		        case "w":
-		        case "width": 
-			        t.size.x = ParseDimension(expr);
-					break;
-		        
-		        case "h":
-		        case "height":
-			        t.size.y = ParseDimension(expr);
-			        break;
-		        
-		        case "pos": 
-			        t.pos = EvaluateValue<float2>(expr);
-			        logger.LogDebug($"Pos: {t.pos}");
-			        break;
-		        
-		        case "x":
-			        t.pos.x = EvaluateValue<float>(expr);
-			        break;
-		        
-		        case "y":
-			        t.pos.y = EvaluateValue<float>(expr);
-			        break;
-		        
-		        case "angle":
-			        t.angle = EvaluateValue<float>(expr);
-			        break;
-	            
 		        case "layer":
 			        e.layerOffset = EvaluateValue<int>(expr);
 			        break;
 	            
 		        default:
-			        throw new ResolveException($"Invalid element property '{prop.name}'");
+			        throw new ResolveException($"Invalid element property '{prop.name}' at '{e.GetPath()}'");
 	        }
         }
 
@@ -139,7 +97,7 @@ namespace REDIZIT.RUI
                 Node_Component node = nodes[i];
                 if (service.module.componentTypes.TryGetValue(node.typeName, out Type type) == false)
                 {
-	                throw new WireException($"Component type '{node.typeName}' not found");
+	                throw new WireException($"Component type '{node.typeName}' not found for element {element.GetPath()}");
                 }
         
                 CanvasComponent comp = null;
