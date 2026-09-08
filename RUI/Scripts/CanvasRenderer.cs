@@ -25,14 +25,15 @@ namespace REDIZIT.RUI
 		public readonly CanvasGenerationContext context = new();
 		public CanvasElement root;
 		public bool isDirty = true;
+		
+		private float2 lastScreenSize;
+		private string rootFilePath;
 
 		[Inject] private CanvasService canvasService;
 		[Inject] private Assets assetDatabase;
 		[Inject] private CanvasReconciler reconciler;
 		[Inject] private CanvasInputManager inputManager;
 		[Inject] private ILogger<CanvasRenderer> logger;
-
-		private string rootFilePath;
 
 		public void OnEnable()
 		{
@@ -111,7 +112,15 @@ namespace REDIZIT.RUI
 
 			if (root == null) return;
 
-			// 1. Update pass
+			// 1. Отслеживаем изменение размера Game View или разрешения экрана:
+			float2 currentScreenSize = new float2(Screen.width, Screen.height);
+			if (!math.all(currentScreenSize == lastScreenSize))
+			{
+				lastScreenSize = currentScreenSize;
+				MarkDirty(); // Если разрешение изменилось — принудительно перестраиваем UI
+			}
+
+			// 2. Update pass
 			Stopwatch w = Stopwatch.StartNew();
 			Stopwatch w1 = Stopwatch.StartNew();
 			if (Application.isPlaying)
@@ -123,33 +132,27 @@ namespace REDIZIT.RUI
 
 			if (isDirty)
 			{
-				// 2. Layout pass
+				// 3. Layout pass
 				Stopwatch w2 = Stopwatch.StartNew();
-				float2 screenSize = new(Screen.width, Screen.height);
 				SizeConstraints constraints = new()
 				{
-					x = AxisConstraints.LessOrEqual(screenSize.x),
-					y = AxisConstraints.LessOrEqual(screenSize.y),
+					x = AxisConstraints.LessOrEqual(currentScreenSize.x),
+					y = AxisConstraints.LessOrEqual(currentScreenSize.y),
 				};
 				root.Measure(constraints);
-				root.Arrange(new(0, screenSize));
+				root.Arrange(new(0, currentScreenSize));
 				w2.Stop();
-
-				if (logger.IsEnabled(LogLevel.Debug))
-				{
-					logger.LogDebug(root.PrintTree());
-				}
-		        
-				// 3. Render pass
+	        
+				// 4. Render pass
 				Stopwatch w3 = Stopwatch.StartNew();
 				context.Clear();
 				root.RenderTree(context);
 				context.FinalizeBatches();
 				w3.Stop();
 				w.Stop();
-		        
+	        
 				logger.LogDebug($"Canvas built in {w.ElapsedMilliseconds} ms (update: {w1.ElapsedMilliseconds}, layout: {w2.ElapsedMilliseconds}, render: {w3.ElapsedMilliseconds})");
-		        
+	        
 				isDirty = false;
 			}
 		}
