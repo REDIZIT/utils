@@ -18,6 +18,9 @@ namespace REDIZIT.RUI
         {
             if (renderingData.cameraData.cameraType != CameraType.Game) return;
 
+            int uiLayer = LayerMask.GetMask("UI");
+            if ((renderingData.cameraData.camera.cullingMask & uiLayer) == 0) return;
+
             // Теперь проверяем единственный синглтон-инстанс
             if (CanvasRenderer.Instance == null) return;
 
