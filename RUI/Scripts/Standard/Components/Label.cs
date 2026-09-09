@@ -113,15 +113,18 @@ namespace REDIZIT.RUI
 	        if (string.IsNullOrEmpty(text) || subpixelFont == null || fontMaterial == null)
 		        return;
 
-	        // --- 1. БЫСТРЫЙ CPU КУЛЛИНГ ВСЕГО ЭЛЕМЕНТА ЦЕЛИКОМ ---
-	        Vector4 clip = ctx.CurrentClipRect; // (minX, minY, maxX, maxY)
-	        Vector4 bounds = Element.GetScreenBounds(); // (minX, minY, maxX, maxY)
+	        if (TextEngine.enableDebugLogs && (text.StartsWith("Переименовать") || text.StartsWith("Создать")))
+	        {
+		        Debug.Log($"[Label] Path: {Element.GetPath()} | Text: '{text}' | pos.y: {Transform.pos.y:F1} | size.y: {Transform.size.y:F1}");
+	        }
 
-	        // Если весь элемент целиком за пределами маски (выше, ниже, левее, правее)
+	        // --- 1. КУЛЛИНГ ---
+	        Vector4 clip = ctx.CurrentClipRect;
+	        Vector4 bounds = Element.GetScreenBounds();
+
 	        if (bounds.z < clip.x || bounds.x > clip.z ||
 	            bounds.w < clip.y || bounds.y > clip.w)
 	        {
-		        // Не тратим ресурсы CPU и не генерируем вершины для невидимого текста!
 		        return;
 	        }
 
