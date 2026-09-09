@@ -164,5 +164,127 @@ namespace REDIZIT.RUI
 			// due to unstable behaviour while using EditorGUI functions
 			return new(cam.pixelWidth, cam.pixelHeight);
 		}
+		
+		/// <summary>
+		/// Проверяет, находится ли текущая позиция курсора мыши над элементами UI.
+		/// </summary>
+		public bool IsPointerOverUI()
+		{
+		    return IsPointerOverUI(Input.mousePosition);
+		}
+
+		/// <summary>
+		/// Проверяет, находится ли указанная экранная точка над элементами UI.
+		/// </summary>
+		public bool IsPointerOverUI(Vector2 screenPos)
+		{
+		    return Raycast(screenPos) != null;
+		}
+
+		/// <summary>
+		/// Выполняет Raycast по дереву UI и возвращает самый верхний элемент под курсором (или null).
+		/// </summary>
+		public CanvasElement Raycast(Vector2 screenPos)
+		{
+		    if (root == null || !root.isEnabled) return null;
+		    return RaycastRecursive(root, screenPos, null);
+		}
+
+		private CanvasElement RaycastRecursive(CanvasElement element, Vector2 screenPos, Vector4? currentClipRect)
+		{
+		    if (!element.isEnabled) return null;
+
+		    // 1. Учитываем маску (Mask), если она есть на текущем элементе
+		    Mask mask = element.TryGetComponent<Mask>();
+		    if (mask != null && mask.enabled)
+		    {
+		        Vector4 maskRect = mask.GetWorldClipRect();
+		        currentClipRect = currentClipRect.HasValue 
+		            ? IntersectRects(currentClipRect.Value, maskRect) 
+		            : maskRect;
+		    }
+
+		    // Если точка отсечена внешней маской — глубже не идем
+		    if (currentClipRect.HasValue)
+		    {
+		        Vector4 clip = currentClipRect.Value;
+		        if (screenPos.x < clip.x || screenPos.x > clip.z ||
+		            screenPos.y < clip.y || screenPos.y > clip.w)
+		        {
+		            return null;
+		        }
+		    }
+
+		    // 2. Сначала опрашиваем детей с конца к началу (от верхних слоев к нижним)
+		    var children = element.Children;
+		    if (children.Count > 0)
+		    {
+		        // Если у детей разный layerOffset, сначала проверяем более высокие слои (например, всплывающие окна)
+		        for (int i = children.Count - 1; i >= 0; i--)
+		        {
+		            CanvasElement child = children.ElementAt(i);
+		            CanvasElement hit = RaycastRecursive(child, screenPos, currentClipRect);
+		            if (hit != null) return hit;
+		        }
+		    }
+
+		    // 3. Проверяем сам элемент: попадает ли точка в его физические границы на экране
+		    Vector4 bounds = element.GetScreenBounds();
+		    if (screenPos.x >= bounds.x && screenPos.x <= bounds.z &&
+		        screenPos.y >= bounds.y && screenPos.y <= bounds.w)
+		    {
+		        // Проверяем, блокирует ли этот элемент луч (есть ли на нем визуал или инпут)
+		        if (IsRaycastBlocker(element))
+		        {
+		            return element;
+		        }
+		    }
+
+		    return null;
+		}
+
+		/// <summary>
+		/// Определяет, перехватывает ли узел рейкаст (не пустой ли это технический узел-контейнер).
+		/// </summary>
+		private bool IsRaycastBlocker(CanvasElement element)
+		{
+		    var comps = element.Components;
+		    for (int i = 0; i < comps.Count; i++)
+		    {
+		        CanvasComponent comp = comps.ElementAt(i);
+		        if (!comp.isEnabled) continue;
+
+		        // Интерактивные элементы (кнопки, скроллы, кастомные кликабельные компоненты)
+		        if (comp is Button || comp is ScrollView || 
+		            comp is IPointerDownHandler || comp is IPointerScrollHandler)
+		        {
+		            return true;
+		        }
+
+		        // Визуальные элементы (фоновые плашки, иконки, текст)
+		        if (comp is Image image)
+		        {
+		            // Не блокируем, если цвет полностью прозрачный и нет спрайта
+		            if (image.color.a > 0.001f || image.sprite != null) return true;
+		        }
+
+		        if (comp is Label label && !string.IsNullOrEmpty(label.text))
+		        {
+		            return true;
+		        }
+		    }
+
+		    return false;
+		}
+
+		private static Vector4 IntersectRects(Vector4 a, Vector4 b)
+		{
+		    return new Vector4(
+		        math.max(a.x, b.x),
+		        math.max(a.y, b.y),
+		        math.min(a.z, b.z),
+		        math.min(a.w, b.w)
+		    );
+		}
 	}
 }
