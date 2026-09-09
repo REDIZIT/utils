@@ -24,7 +24,7 @@ namespace REDIZIT.RUI
 
 				if (anchor != null)
 				{
-					// X
+					// По оси X:
 					if (anchor.width.HasValue)
 					{
 						childConstraints.x = AxisConstraints.Equal(anchor.width.Value);
@@ -37,10 +37,11 @@ namespace REDIZIT.RUI
 					else if (anchor.left.HasValue || anchor.right.HasValue)
 					{
 						float padX = (anchor.left ?? 0f) + (anchor.right ?? 0f);
-						childConstraints.x.Shrink(padX);
+						// ВАЖНО: LessOrEqual, а не Equal, чтобы меню не растягивалось насильно
+						childConstraints.x = hasMaxW ? AxisConstraints.LessOrEqual(math.max(0f, maxAvailableW - padX)) : AxisConstraints.Unlimited();
 					}
 
-					// Y
+					// По оси Y:
 					if (anchor.height.HasValue)
 					{
 						childConstraints.y = AxisConstraints.Equal(anchor.height.Value);
@@ -53,7 +54,8 @@ namespace REDIZIT.RUI
 					else if (anchor.top.HasValue || anchor.bottom.HasValue)
 					{
 						float padY = (anchor.top ?? 0f) + (anchor.bottom ?? 0f);
-						childConstraints.y.Shrink(padY);
+						// ВАЖНО: LessOrEqual, а не Equal
+						childConstraints.y = hasMaxH ? AxisConstraints.LessOrEqual(math.max(0f, maxAvailableH - padY)) : AxisConstraints.Unlimited();
 					}
 				}
 
