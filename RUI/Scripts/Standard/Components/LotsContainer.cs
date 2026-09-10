@@ -30,10 +30,7 @@ namespace REDIZIT.RUI
 	        // 2. ДОСОЗДАЕМ ТОЛЬКО НЕДОСТАЮЩИЕ (если список вырос)
 	        for (int i = currentCount; i < targetCount; i++)
 	        {
-		        // ВАЖНО: Spawn(..., Element) уже прикрепляет созданный узел к Element!
 		        reconciler.Spawn(canvasTemplate, Element);
-        
-		        // Element.AddChild(lotElement); <--- ЭТУ СТРОКУ УДАЛЯЕМ!
 	        }
 
 	        // 3. МГНОВЕННОЕ ОБНОВЛЕНИЕ ДАННЫХ В ПУЛЕ (теперь ровно 1 к 1)
