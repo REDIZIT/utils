@@ -7,16 +7,25 @@ public class AutoSub : IDisposable
 	private readonly Action executeFunc;
 	private readonly HashSet<IReactive> dependencies = new();
 	private readonly Action onDependencyChanged;
+	private bool isDisposed;
 
 	public AutoSub(Action executeFunc)
 	{
 		this.executeFunc = executeFunc;
-		this.onDependencyChanged = Run; // Кешируем делегат для подписок
-		Run(); // Запускаем первый раз
+		this.onDependencyChanged = ScheduleRun; // Планируем, а не вызываем сразу
+		Run(); // Первый запуск выполняем синхронно для первичной отрисовки и сбора зависимостей
 	}
 
-	private void Run()
+	private void ScheduleRun()
 	{
+		if (isDisposed) return;
+		ReactiveTracker.Schedule(this);
+	}
+
+	internal void Run()
+	{
+		if (isDisposed) return;
+
 		// 1. Отписываемся от старых зависимостей
 		foreach (var dep in dependencies) dep.Unsubscribe(onDependencyChanged);
 		dependencies.Clear();
@@ -27,8 +36,7 @@ public class AutoSub : IDisposable
 
 		try
 		{
-			// 3. Выполняем код UI. 
-			// Все вызовы .Value внутри запишутся в коллекцию dependencies!
+			// 3. Выполняем код UI
 			executeFunc();
 		}
 		catch (Exception e)
@@ -47,6 +55,10 @@ public class AutoSub : IDisposable
 
 	public void Dispose()
 	{
+		if (isDisposed) return;
+		isDisposed = true;
+
+		ReactiveTracker.Unschedule(this);
 		foreach (var dep in dependencies) dep.Unsubscribe(onDependencyChanged);
 		dependencies.Clear();
 	}

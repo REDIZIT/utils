@@ -103,7 +103,6 @@ public class RList<T> : ICollection<T>, IReactive
 	
 	private void OnChanged()
 	{
-		ReactiveTracker.OnChanged(this);
 		onChanged?.Invoke();
 	}
 	

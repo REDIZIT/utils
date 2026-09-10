@@ -83,9 +83,15 @@ namespace REDIZIT.RUI
 				root.onTreeDirty = MarkDirty;
 			}
 
+			// 1. Сборка всего дерева узлов и компонентов
 			reconciler.Reconcile(root, mainNode);
+
+			// 2. Связывание всех полей по всему дереву (теперь ContextMenusUI гарантированно существует в памяти!)
 			reconciler.PostProcessBindings(root);
-            
+
+			// 3. Вызов OnAttached у всех компонентов (WorkspaceHierarchyWindow создаст лоты, и они найдут ContextMenusUI!)
+			reconciler.NotifyAttached();
+    
 			MarkDirty();
 		}
 
@@ -215,17 +221,40 @@ namespace REDIZIT.RUI
 		        }
 		    }
 
-		    // 2. Сначала опрашиваем детей с конца к началу (от верхних слоев к нижним)
+		    // 2. Опрашиваем детей с учетом layerOffset
 		    var children = element.Children;
 		    if (children.Count > 0)
 		    {
-		        // Если у детей разный layerOffset, сначала проверяем более высокие слои (например, всплывающие окна)
-		        for (int i = children.Count - 1; i >= 0; i--)
-		        {
-		            CanvasElement child = children.ElementAt(i);
-		            CanvasElement hit = RaycastRecursive(child, screenPos, currentClipRect);
-		            if (hit != null) return hit;
-		        }
+			    bool hasCustomLayers = false;
+			    for (int i = 0; i < children.Count; i++)
+			    {
+				    if (children.ElementAt(i).layerOffset != 0)
+				    {
+					    hasCustomLayers = true;
+					    break;
+				    }
+			    }
+
+			    if (!hasCustomLayers)
+			    {
+				    // Быстрый путь без аллокаций: идем с конца к началу
+				    for (int i = children.Count - 1; i >= 0; i--)
+				    {
+					    CanvasElement child = children.ElementAt(i);
+					    CanvasElement hit = RaycastRecursive(child, screenPos, currentClipRect);
+					    if (hit != null) return hit;
+				    }
+			    }
+			    else
+			    {
+				    // Если у элементов есть разные слои: элементы с высоким слоем опрашиваются первыми
+				    var sorted = children.OrderByDescending(c => c.layerOffset);
+				    foreach (var child in sorted)
+				    {
+					    CanvasElement hit = RaycastRecursive(child, screenPos, currentClipRect);
+					    if (hit != null) return hit;
+				    }
+			    }
 		    }
 
 		    // 3. Проверяем сам элемент: попадает ли точка в его физические границы на экране

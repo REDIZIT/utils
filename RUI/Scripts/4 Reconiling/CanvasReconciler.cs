@@ -15,6 +15,9 @@ namespace REDIZIT.RUI
         private readonly DiContainer container;
         private readonly ILogger<CanvasReconciler> logger;
 
+        // Очередь новых компонентов, ожидающих вызова OnAttached
+        private readonly List<CanvasComponent> newComponentsQueue = new();
+
         public CanvasReconciler(CanvasService service, DiContainer container)
         {
             this.service = service;
@@ -40,11 +43,16 @@ namespace REDIZIT.RUI
 		        service = service,
 		        reconciler = this
 	        };
+
+            // 1. Добавляем к родителю сразу, чтобы при связывании полей инстанс мог подниматься к родителю
+            if (parent != null)
+            {
+                parent.AddChild(inst);
+            }
         
 	        Reconcile(inst, template.templateAst);
 	        PostProcessBindings(inst);
-
-	        parent.AddChild(inst);
+            NotifyAttached(); // Активируем OnAttached для компонентов шаблона
 
 	        return inst;
         }
@@ -89,8 +97,6 @@ namespace REDIZIT.RUI
         private void ReconcileComponents(CanvasElement element, List<Node_Component> nodes)
         {
 	        logger.LogDebug($"ReconcileComponents '{element.key}' with {nodes.Count} components");
-	        
-            List<CanvasComponent> newComponents = null;
         
             for (int i = 0; i < nodes.Count; i++)
             {
@@ -117,8 +123,8 @@ namespace REDIZIT.RUI
                     comp.Element = element;
                     element.AddComponent(comp);
                     
-                    newComponents ??= new();
-                    newComponents.Add(comp);
+                    // Сохраняем в очередь на OnAttached, но НЕ вызываем его прямо сейчас!
+                    newComponentsQueue.Add(comp);
                 }
         
                 comp.id = node.id;
@@ -127,14 +133,24 @@ namespace REDIZIT.RUI
 	                ApplyComponentProperty(comp, t);
                 }
             }
-        
-            if (newComponents != null)
+        }
+
+        // Вызывается ПОСЛЕ того, как все дерево построено и все поля связаны через PostProcessBindings
+        public void NotifyAttached()
+        {
+            if (newComponentsQueue.Count == 0) return;
+
+            // Копируем список на случай, если OnAttached вызовет создание новых компонентов
+            var componentsToNotify = newComponentsQueue.ToArray();
+            newComponentsQueue.Clear();
+
+            for (int i = 0; i < componentsToNotify.Length; i++)
             {
-	            foreach (CanvasComponent c in newComponents)
-	            {
-		            WireFields(c, element);
-		            c.OnAttached();
-	            }
+                var comp = componentsToNotify[i];
+                if (comp.Element != null)
+                {
+                    comp.OnAttached();
+                }
             }
         }
 
@@ -201,7 +217,6 @@ namespace REDIZIT.RUI
 	            if (TryResolveComponentDependency(comp.Element, targetType, out CanvasComponent component, prop.name))
 	            {
 		            value = component;
-		            Debug.Log($"Component found '{component.id}'");
 	            }
 	            else
 	            {
@@ -259,13 +274,13 @@ namespace REDIZIT.RUI
 		{
 		    CanvasComponent firstTypeMatch = null;
 
-		    // 1. Проверяем СЕБЯ (Self)
+		    // 1. Проверяем СЕБЯ
 		    if (CheckElementComponents(startElement, componentType, componentName, ref firstTypeMatch, out comp))
 		    {
-		        return true; // Найдено точное совпадение (Тип + ID)
+		        return true;
 		    }
 
-		    // 2. Ищем ВНИЗ по дереву (Children DFS)
+		    // 2. Ищем ВНИЗ по поддереву
 		    foreach (CanvasElement child in startElement.Children)
 		    {
 		        if (SearchDownDFS(child, componentType, componentName, ref firstTypeMatch, out comp))
@@ -274,23 +289,20 @@ namespace REDIZIT.RUI
 		        }
 		    }
 
-		    // 3. Поднимаемся НАВЕРХ (Upwards DFS)
-		    // Идем к родителю, проверяем его самого и соседние ветки (исключая ту, откуда пришли)
+		    // 3. Поднимаемся НАВЕРХ и проверяем соседние ветки
 		    CanvasElement childBranch = startElement;
 		    CanvasElement current = startElement.parent;
 
 		    while (current != null)
 		    {
-		        // Проверяем самого родителя
 		        if (CheckElementComponents(current, componentType, componentName, ref firstTypeMatch, out comp))
 		        {
 		            return true;
 		        }
 
-		        // Проверяем соседние ветви родителя
 		        foreach (CanvasElement sibling in current.Children)
 		        {
-		            if (sibling == childBranch) continue; // Пропускаем ветку, из которой поднялись
+		            if (sibling == childBranch) continue;
 
 		            if (SearchDownDFS(sibling, componentType, componentName, ref firstTypeMatch, out comp))
 		            {
@@ -298,12 +310,10 @@ namespace REDIZIT.RUI
 		            }
 		        }
 
-		        // Двигаемся на уровень выше
 		        childBranch = current;
 		        current = current.parent;
 		    }
 
-		    // Точного совпадения по ID не нашлось. Возвращаем первого кандидата по совпадению типа.
 		    if (firstTypeMatch != null)
 		    {
 		        comp = firstTypeMatch;
@@ -314,18 +324,13 @@ namespace REDIZIT.RUI
 		    return false;
 		}
 
-		/// <summary>
-		/// Рекурсивный поиск в глубину (DFS) вниз по поддереву.
-		/// </summary>
 		private bool SearchDownDFS(CanvasElement current, Type componentType, string? componentName, ref CanvasComponent firstTypeMatch, out CanvasComponent exactMatch)
 		{
-		    // Проверяем текущий узел
 		    if (CheckElementComponents(current, componentType, componentName, ref firstTypeMatch, out exactMatch))
 		    {
 		        return true;
 		    }
 
-		    // Углубляемся в детей
 		    foreach (CanvasElement child in current.Children)
 		    {
 		        if (SearchDownDFS(child, componentType, componentName, ref firstTypeMatch, out exactMatch))
@@ -338,10 +343,6 @@ namespace REDIZIT.RUI
 		    return false;
 		}
 
-		/// <summary>
-		/// Проверяет компоненты на одном конкретном элементе.
-		/// Дешёвый линейный проход без аллокаций.
-		/// </summary>
 		private bool CheckElementComponents(CanvasElement element, Type componentType, string? componentName, ref CanvasComponent firstTypeMatch, out CanvasComponent exactMatch)
 		{
 		    exactMatch = null;
@@ -349,24 +350,20 @@ namespace REDIZIT.RUI
 
 		    foreach (CanvasComponent c in element.Components)
 		    {
-		        // Быстрая проверка типа (IsAssignableFrom)
 		        if (componentType.IsAssignableFrom(c.GetType()))
 		        {
-		            // Если задано имя, проверяем ID
 		            if (hasTargetName)
 		            {
 		                if (string.Equals(c.id, componentName, StringComparison.OrdinalIgnoreCase))
 		                {
 		                    exactMatch = c;
-		                    return true; // Найдено идеальное совпадение: и Тип, и ID
+		                    return true;
 		                }
 
-		                // Запоминаем только первого кандидата по типу
 		                firstTypeMatch ??= c;
 		            }
 		            else
 		            {
-		                // Если имя не требовалось — первое же совпадение типа считается точным
 		                exactMatch = c;
 		                return true;
 		            }
@@ -375,7 +372,6 @@ namespace REDIZIT.RUI
 
 		    return false;
 		}
-		
 
         private CanvasElement FindElementByKey(CanvasElement e, string key)
         {
