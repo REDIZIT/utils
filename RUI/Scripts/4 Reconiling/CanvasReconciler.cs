@@ -34,11 +34,11 @@ namespace REDIZIT.RUI
 	        return Spawn(template, parent).TryGetComponent<TTemplate>();
         }
         
-        public CanvasElement Spawn(CanvasTemplate template, CanvasElement parent)
+        public CanvasElement Spawn(CanvasTemplate template, CanvasElement parent, string key = null)
         {
 	        CanvasElement inst = new()
 	        {
-		        key = template.templateAst.key,
+		        key = key ?? template.templateAst.key,
 		        parent = parent,
 		        service = service,
 		        reconciler = this
@@ -277,7 +277,7 @@ namespace REDIZIT.RUI
 		    // 1. Проверяем СЕБЯ
 		    if (CheckElementComponents(startElement, componentType, componentName, ref firstTypeMatch, out comp))
 		    {
-		        return true;
+		        return true; // Найдено точное совпадение (Тип + ID)
 		    }
 
 		    // 2. Ищем ВНИЗ по поддереву
@@ -287,6 +287,14 @@ namespace REDIZIT.RUI
 		        {
 		            return true;
 		        }
+		    }
+		    
+		    // ВАЖНАЯ ЗАЩИТА: Если на САМОМ элементе уже есть компонент нужного типа, 
+		    // используем его и НЕ лезем искать по чужим веткам дерева!
+		    if (firstTypeMatch != null)
+		    {
+			    comp = firstTypeMatch;
+			    return true;
 		    }
 
 		    // 3. Поднимаемся НАВЕРХ и проверяем соседние ветки

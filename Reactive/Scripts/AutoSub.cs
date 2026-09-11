@@ -12,15 +12,15 @@ public class AutoSub : IDisposable
 	public AutoSub(Action executeFunc)
 	{
 		this.executeFunc = executeFunc;
-		this.onDependencyChanged = ScheduleRun; // Планируем, а не вызываем сразу
-		Run(); // Первый запуск выполняем синхронно для первичной отрисовки и сбора зависимостей
+		this.onDependencyChanged = Run;
+		Run();
 	}
 
-	private void ScheduleRun()
-	{
-		if (isDisposed) return;
-		ReactiveTracker.Schedule(this);
-	}
+	// private void ScheduleRun()
+	// {
+	// 	if (isDisposed) return;
+	// 	ReactiveTracker.Schedule(this);
+	// }
 
 	internal void Run()
 	{

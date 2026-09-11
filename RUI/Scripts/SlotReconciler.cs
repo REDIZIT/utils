@@ -91,18 +91,8 @@ namespace REDIZIT.RUI
 							continue;
 						}
 
-						child = new CanvasElement
-						{
-							key = slot.key,
-							parent = container,
-							service = service,
-							reconciler = reconciler
-						};
+						child = reconciler.Spawn(template, container, slot.key);
 
-						reconciler.Reconcile(child, template.templateAst);
-						reconciler.PostProcessBindings(child);
-
-						container.InsertChild(i, child);
 						changed = true;
 					}
 				}
