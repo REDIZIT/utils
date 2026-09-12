@@ -113,17 +113,15 @@ namespace REDIZIT.RUI
 	        if (string.IsNullOrEmpty(text) || subpixelFont == null || fontMaterial == null)
 		        return;
 
-	        // --- 1. БЫСТРЫЙ CPU КУЛЛИНГ ВСЕГО ЭЛЕМЕНТА ЦЕЛИКОМ ---
-	        Vector4 clip = ctx.CurrentClipRect; // (minX, minY, maxX, maxY)
-	        Vector4 bounds = Element.GetScreenBounds(); // (minX, minY, maxX, maxY)
-
-	        // Если весь элемент целиком за пределами маски (выше, ниже, левее, правее)
-	        if (bounds.z < clip.x || bounds.x > clip.z ||
-	            bounds.w < clip.y || bounds.y > clip.w)
+	        if (TextEngine.enableDebugLogs && (text.StartsWith("Переименовать") || text.StartsWith("Создать")))
 	        {
-		        // Не тратим ресурсы CPU и не генерируем вершины для невидимого текста!
-		        return;
+		        Debug.Log($"[Label] Path: {Element.GetPath()} | Text: '{text}' | pos.y: {Transform.pos.y:F1} | size.y: {Transform.size.y:F1}");
 	        }
+
+	        // --- 1. КУЛЛИНГ ---
+	        Rect clip = ctx.CurrentClipRect;
+	        Rect bounds = Element.GetScreenBounds();
+	        if (clip.Overlaps(bounds) == false) return;
 
 	        // Раскладываем глифы
 	        TextEngine.LayoutSubpixel(text, subpixelFont, Transform.size, alignment, cachedGlyphs);
@@ -148,8 +146,8 @@ namespace REDIZIT.RUI
 		        float gMaxY = Mathf.Max(glyphWorldMin.y, glyphWorldMax.y);
 
 		        // Если конкретная буква целиком вне маски — пропускаем квад
-		        if (gMaxX < clip.x || gMinX > clip.z ||
-		            gMaxY < clip.y || gMinY > clip.w)
+		        if (gMaxX < clip.min.x || gMinX > clip.max.x ||
+		            gMaxY < clip.min.y || gMinY > clip.max.y)
 		        {
 			        continue;
 		        }

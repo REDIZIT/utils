@@ -2,6 +2,11 @@
 
 namespace REDIZIT.RUI
 {
+	public interface ISlottable
+	{
+		void SyncSlots(SlotBuilder s);
+	}
+	
 	public class SlotBuilder
 	{
 		public readonly List<SlotDescriptor> slots = new();

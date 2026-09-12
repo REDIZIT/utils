@@ -120,21 +120,21 @@ namespace REDIZIT.RUI
         private DrawBatch currentBatch;
         private Layer currentLayer = Layer.Background;
 
-        public static readonly Vector4 InfiniteClipRect = new(-100000f, -100000f, 100000f, 100000f);
-        public readonly Stack<Vector4> clipStack = new();
+        public static readonly Rect InfiniteClipRect = Rect.MinMaxRect(-100000f, -100000f, 100000f, 100000f);
+        public readonly Stack<Rect> clipStack = new();
 
-        public Vector4 CurrentClipRect => clipStack.Count > 0 ? clipStack.Peek() : InfiniteClipRect;
+        public Rect CurrentClipRect => clipStack.Count > 0 ? clipStack.Peek() : InfiniteClipRect;
 
-        public void PushClipRect(Vector4 newClip)
+        public void PushClipRect(Rect newClip)
         {
             if (clipStack.Count > 0)
             {
-                Vector4 parentClip = clipStack.Peek();
-                float minX = Mathf.Max(parentClip.x, newClip.x);
-                float minY = Mathf.Max(parentClip.y, newClip.y);
-                float maxX = Mathf.Min(parentClip.z, newClip.z);
-                float maxY = Mathf.Min(parentClip.w, newClip.w);
-                clipStack.Push(new Vector4(minX, minY, maxX, maxY));
+	            Rect parentClip = clipStack.Peek();
+                float minX = Mathf.Max(parentClip.xMin, newClip.xMin);
+                float minY = Mathf.Max(parentClip.yMin, newClip.yMin);
+                float maxX = Mathf.Min(parentClip.xMax, newClip.xMax);
+                float maxY = Mathf.Min(parentClip.yMax, newClip.yMax);
+                clipStack.Push(Rect.MinMaxRect(minX, minY, maxX, maxY));
             }
             else
             {
@@ -179,12 +179,12 @@ namespace REDIZIT.RUI
                 currentBatch.uvs.Add(new Vector2(uvRect.z, uvRect.w));
             }
 
-            Vector4 currentClip = CurrentClipRect;
+            Rect currentClip = CurrentClipRect;
             for (int i = 0; i < 4; i++)
             {
-                currentBatch.uv1RectSizes.Add(new Vector2(size.x, size.y));
+                currentBatch.uv1RectSizes.Add(new(size.x, size.y));
                 currentBatch.uv2Data.Add(cornerRadii);
-                currentBatch.uv3ClipRects.Add(currentClip);
+                currentBatch.uv3ClipRects.Add(new(currentClip.min.x, currentClip.min.y, currentClip.max.x, currentClip.max.y));
                 currentBatch.colors.Add(color);
             }
 

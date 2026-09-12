@@ -210,14 +210,24 @@ namespace REDIZIT.RUI
         {
             if (!isEnabled) return;
 
-            foreach (CanvasComponent c in components)
+            // Обход компонентов с конца к началу
+            for (int i = components.Count - 1; i >= 0; i--)
             {
-	            if (c.isEnabled) c.Update();
+	            if (i < components.Count) // Защита от резкого уменьшения списка
+	            {
+		            var c = components[i];
+		            if (c.isEnabled) c.Update();
+	            }
             }
 
-            foreach (CanvasElement child in children)
+            // Обход детей с конца к началу
+            for (int i = children.Count - 1; i >= 0; i--)
             {
-	            child.UpdateTree();
+	            if (i < children.Count)
+	            {
+		            var child = children[i];
+		            if (child.isEnabled) child.UpdateTree();
+	            }
             }
         }
 
@@ -249,7 +259,7 @@ namespace REDIZIT.RUI
 	        ctx.currentLayerOffset = previousOffset;
         }
 
-        public Vector4 GetScreenBounds()
+        public Rect GetScreenBounds()
         {
             Matrix4x4 m = LocalToRoot;
 
@@ -265,7 +275,7 @@ namespace REDIZIT.RUI
             float maxX = math.max(math.max(p0.x, p1.x), math.max(p2.x, p3.x));
             float maxY = math.max(math.max(p0.y, p1.y), math.max(p2.y, p3.y));
 
-            return new(minX, minY, maxX, maxY);
+            return Rect.MinMaxRect(minX, minY, maxX, maxY);
         }
 
         public string GetPath()

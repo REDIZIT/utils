@@ -15,8 +15,8 @@ namespace REDIZIT.RUI
 			if (container == null) return;
 
 			// Ищем сервис и реконсилер вверх по иерархии
-			var service = container.service;
-			var reconciler = container.reconciler;
+			CanvasService service = container.service;
+			CanvasReconciler reconciler = container.reconciler;
 
 			if (service == null || reconciler == null)
 			{
@@ -85,24 +85,14 @@ namespace REDIZIT.RUI
 					else
 					{
 						// 3. Создаем новый элемент из шаблона slot.lotType
-						if (!service.module.templates.TryGetValue(slot.lotType, out CanvasTemplate template))
+						if (!service.TryGetTemplate(slot.lotType, out CanvasTemplate template))
 						{
 							Debug.LogError($"[RUI] Шаблон для типа '{slot.lotType.Name}' не зарегистрирован!");
 							continue;
 						}
 
-						child = new CanvasElement
-						{
-							key = slot.key,
-							parent = container,
-							service = service,
-							reconciler = reconciler
-						};
+						child = reconciler.Spawn(template, container, slot.key);
 
-						reconciler.Reconcile(child, template.templateAst);
-						reconciler.PostProcessBindings(child);
-
-						container.InsertChild(i, child);
 						changed = true;
 					}
 				}

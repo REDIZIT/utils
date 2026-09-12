@@ -83,9 +83,15 @@ namespace REDIZIT.RUI
 				root.onTreeDirty = MarkDirty;
 			}
 
+			// 1. Сборка всего дерева узлов и компонентов
 			reconciler.Reconcile(root, mainNode);
+
+			// 2. Связывание всех полей по всему дереву (теперь ContextMenusUI гарантированно существует в памяти!)
 			reconciler.PostProcessBindings(root);
-            
+
+			// 3. Вызов OnAttached у всех компонентов (WorkspaceHierarchyWindow создаст лоты, и они найдут ContextMenusUI!)
+			reconciler.NotifyAttached();
+    
 			MarkDirty();
 		}
 
@@ -163,6 +169,150 @@ namespace REDIZIT.RUI
 			// Use camera screen size instead of Screen.width/height
 			// due to unstable behaviour while using EditorGUI functions
 			return new(cam.pixelWidth, cam.pixelHeight);
+		}
+		
+		/// <summary>
+		/// Проверяет, находится ли текущая позиция курсора мыши над элементами UI.
+		/// </summary>
+		public bool IsPointerOverUI()
+		{
+		    return IsPointerOverUI(Input.mousePosition);
+		}
+
+		/// <summary>
+		/// Проверяет, находится ли указанная экранная точка над элементами UI.
+		/// </summary>
+		public bool IsPointerOverUI(Vector2 screenPos)
+		{
+		    return Raycast(screenPos) != null;
+		}
+
+		/// <summary>
+		/// Выполняет Raycast по дереву UI и возвращает самый верхний элемент под курсором (или null).
+		/// </summary>
+		public CanvasElement Raycast(Vector2 screenPos)
+		{
+		    if (root == null || !root.isEnabled) return null;
+		    return RaycastRecursive(root, screenPos, null);
+		}
+
+		private CanvasElement RaycastRecursive(CanvasElement element, Vector2 screenPos, Rect? currentClipRect)
+		{
+		    if (!element.isEnabled) return null;
+
+		    // 1. Учитываем маску (Mask), если она есть на текущем элементе
+		    Mask mask = element.TryGetComponent<Mask>();
+		    if (mask != null && mask.enabled)
+		    {
+		        Rect maskRect = mask.GetWorldClipRect();
+		        currentClipRect = currentClipRect.HasValue 
+		            ? IntersectRects(currentClipRect.Value, maskRect) 
+		            : maskRect;
+		    }
+
+		    // Если точка отсечена внешней маской — глубже не идем
+		    if (currentClipRect.HasValue)
+		    {
+		        Rect clip = currentClipRect.Value;
+		        if (screenPos.x < clip.xMin || screenPos.x > clip.xMax ||
+		            screenPos.y < clip.yMin || screenPos.y > clip.yMax)
+		        {
+		            return null;
+		        }
+		    }
+
+		    // 2. Опрашиваем детей с учетом layerOffset
+		    var children = element.Children;
+		    if (children.Count > 0)
+		    {
+		        bool hasCustomLayers = false;
+		        for (int i = 0; i < children.Count; i++)
+		        {
+		            if (children.ElementAt(i).layerOffset != 0)
+		            {
+		                hasCustomLayers = true;
+		                break;
+		            }
+		        }
+
+		        if (!hasCustomLayers)
+		        {
+		            // Быстрый путь без аллокаций: идем с конца к началу
+		            for (int i = children.Count - 1; i >= 0; i--)
+		            {
+		                CanvasElement child = children.ElementAt(i);
+		                CanvasElement hit = RaycastRecursive(child, screenPos, currentClipRect);
+		                if (hit != null) return hit;
+		            }
+		        }
+		        else
+		        {
+		            // Если у элементов есть разные слои: элементы с высоким слоем опрашиваются первыми
+		            var sorted = children.OrderByDescending(c => c.layerOffset);
+		            foreach (var child in sorted)
+		            {
+		                CanvasElement hit = RaycastRecursive(child, screenPos, currentClipRect);
+		                if (hit != null) return hit;
+		            }
+		        }
+		    }
+
+		    // 3. Проверяем сам элемент: попадает ли точка в его физические границы на экране
+		    Rect bounds = element.GetScreenBounds();
+		    if (bounds.Contains(screenPos))
+		    {
+		        // Проверяем, блокирует ли этот элемент луч (есть ли на нем визуал или инпут)
+		        if (IsRaycastBlocker(element))
+		        {
+		            return element;
+		        }
+		    }
+
+		    return null;
+		}
+
+		/// <summary>
+		/// Определяет, перехватывает ли узел рейкаст (не пустой ли это технический узел-контейнер).
+		/// </summary>
+		private bool IsRaycastBlocker(CanvasElement element)
+		{
+		    var comps = element.Components;
+		    for (int i = 0; i < comps.Count; i++)
+		    {
+		        CanvasComponent comp = comps.ElementAt(i);
+		        if (!comp.isEnabled) continue;
+
+		        // Интерактивные элементы (кнопки, скроллы, кастомные кликабельные компоненты)
+		        if (comp is Button || comp is ScrollView || 
+		            comp is IPointerDownHandler || comp is IPointerScrollHandler)
+		        {
+		            return true;
+		        }
+
+		        // Визуальные элементы (фоновые плашки, иконки, текст)
+		        if (comp is Image image)
+		        {
+		            // Не блокируем, если цвет полностью прозрачный и нет спрайта
+		            if (image.color.a > 0.001f || image.sprite != null) return true;
+		        }
+
+		        if (comp is Label label && !string.IsNullOrEmpty(label.text))
+		        {
+		            return true;
+		        }
+		    }
+
+		    return false;
+		}
+
+		private static Rect IntersectRects(Rect a, Rect b)
+		{
+			return Rect.MinMaxRect(
+				math.max(a.xMin, b.xMin),
+				math.max(a.yMin, b.yMin),
+				math.min(a.xMax, b.xMax),
+				math.min(a.yMax, b.yMax)
+			);
 		}
 	}
 }

@@ -90,20 +90,25 @@ public class RList<T> : ICollection<T>, IReactive
 	
 	public void Set(IEnumerable<T> elements)
 	{
+		foreach (T e in ls) onRemoved?.Invoke(e);
 		ls.Clear();
+		
 		ls.AddRange(elements);
 		OnChanged();
 	}
 
 	public void RemoveAll(Predicate<T> predicate)
 	{
+		foreach (T e in ls)
+		{
+			if (predicate(e)) onRemoved?.Invoke(e);
+		}
 		ls.RemoveAll(predicate);
 		OnChanged();
 	}
 	
 	private void OnChanged()
 	{
-		ReactiveTracker.OnChanged(this);
 		onChanged?.Invoke();
 	}
 	

@@ -8,6 +8,8 @@ namespace REDIZIT.RUI
 {
     public static class TextEngine
     {
+	    public static bool enableDebugLogs = false;
+	    
         // -------------------------------------------------------------
         // СУБПИКСЕЛЬНЫЙ FREETYPE ДВИЖОК
         // -------------------------------------------------------------
@@ -31,54 +33,67 @@ namespace REDIZIT.RUI
         }
 
         public static void LayoutSubpixel(
-            string text,
-            SubpixelFont font,
-            float2 containerSize,
-            TextAlignmentOptions alignment,
-            List<FormattedGlyph> outputGlyphs)
-        {
-            outputGlyphs.Clear();
-            if (string.IsNullOrEmpty(text) || font == null) return;
+		    string text,
+		    SubpixelFont font,
+		    float2 containerSize,
+		    TextAlignmentOptions alignment,
+		    List<FormattedGlyph> outputGlyphs)
+		{
+		    outputGlyphs.Clear();
+		    if (string.IsNullOrEmpty(text) || font == null) return;
 
-            float2 measuredSize = MeasureSubpixel(text, font);
+		    float2 measuredSize = MeasureSubpixel(text, font);
 
-            // Горизонтальное выравнивание
-            float cursorX = 0f;
-            if (alignment == TextAlignmentOptions.Center || alignment == TextAlignmentOptions.Midline)
-            {
-                cursorX = Mathf.Round((containerSize.x - measuredSize.x) * 0.5f);
-            }
-            else if (alignment == TextAlignmentOptions.Right || alignment == TextAlignmentOptions.MidlineRight)
-            {
-                cursorX = Mathf.Round(containerSize.x - measuredSize.x);
-            }
+		    // 1. Горизонтальное выравнивание
+		    float cursorX = 0f;
+		    if (alignment == TextAlignmentOptions.Center || alignment == TextAlignmentOptions.Midline)
+		    {
+		        cursorX = Mathf.Round((containerSize.x - measuredSize.x) * 0.5f);
+		    }
+		    else if (alignment == TextAlignmentOptions.Right || alignment == TextAlignmentOptions.MidlineRight)
+		    {
+		        cursorX = Mathf.Round(containerSize.x - measuredSize.x);
+		    }
 
-            // Базовая линия шрифта
-            float baselineY = Mathf.Round((containerSize.y - measuredSize.y) * 0.5f + font.FontSize * 0.2f);
+		    // 2. Вертикальное выравнивание
+		    float boxHeight = containerSize.y > 0 ? containerSize.y : measuredSize.y;
+		    float fontDescent = font.FontSize * 0.22f;
+		    float baselineY = Mathf.Round((boxHeight - font.FontSize) * 0.5f + fontDescent);
 
-            for (int i = 0; i < text.Length; i++)
-            {
-                char c = text[i];
-                var glyph = font.GetGlyph(c);
-                if (glyph == null) continue;
+		    if (enableDebugLogs && (text.StartsWith("Переименовать") || text.StartsWith("Создать") || text.Length < 15))
+		    {
+		        Debug.Log($"[TextEngine] '{text}' | FontSize: {font.FontSize} | containerSize.y: {containerSize.y:F1} | measuredSize.y: {measuredSize.y:F1} | baselineY: {baselineY:F1}");
+		    }
 
-                if (glyph.width > 0 && glyph.height > 0)
-                {
-                    float x = Mathf.Round(cursorX + glyph.bearingX);
-                    float y = Mathf.Round(baselineY + glyph.bearingY - glyph.height);
+		    for (int i = 0; i < text.Length; i++)
+		    {
+		        char c = text[i];
+		        var glyph = font.GetGlyph(c);
+		        if (glyph == null) continue;
 
-                    outputGlyphs.Add(new FormattedGlyph
-                    {
-                        character = c,
-                        position = new float2(x, y),
-                        size = new float2(glyph.width, glyph.height),
-                        uv = glyph.uv
-                    });
-                }
+		        if (glyph.width > 0 && glyph.height > 0)
+		        {
+		            float x = Mathf.Round(cursorX + glyph.bearingX);
+		            float y = Mathf.Round(baselineY + glyph.bearingY - glyph.height);
 
-                cursorX += glyph.advance;
-            }
-        }
+		            // Логируем метрики первой буквы слова (например 'П' или 'С')
+		            if (enableDebugLogs && i == 0 && (text.StartsWith("Переименовать") || text.StartsWith("Создать")))
+		            {
+		                Debug.Log($"[TextEngine] Первый глиф '{c}' | bearingY: {glyph.bearingY} | glyphH: {glyph.height} | bottom(y): {y:F1} | top(y+h): {(y + glyph.height):F1}");
+		            }
+
+		            outputGlyphs.Add(new FormattedGlyph
+		            {
+		                character = c,
+		                position = new float2(x, y),
+		                size = new float2(glyph.width, glyph.height),
+		                uv = glyph.uv
+		            });
+		        }
+
+		        cursorX += glyph.advance;
+		    }
+		}
 
         // -------------------------------------------------------------
         // СТАРЫЙ SDF ДВИЖОК (Сохраняем без изменений)
