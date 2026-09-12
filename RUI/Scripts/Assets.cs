@@ -60,6 +60,7 @@ namespace REDIZIT.RUI
             if (!Directory.Exists(rootFolderPath)) return;
 
             canvasService.module.templates.Clear();
+            canvasService.module.styles.Clear();
             fileSources.Clear();
             fileAsts.Clear();
             fontBytes.Clear();

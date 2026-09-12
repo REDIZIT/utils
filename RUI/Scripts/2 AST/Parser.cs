@@ -55,11 +55,19 @@ namespace REDIZIT.RUI
 		    int startTokenIndex = current;
 
 		    bool isTemplate = false;
+		    bool isStyle = false;
+		    
 		    if (Check<Token_Identifier>() && Peek<Token_Identifier>(0).name == "template")
 		    {
 		        Consume<Token_Identifier>();
 		        isTemplate = true;
 		        SkipTerminators();
+		    }
+		    else if (Check<Token_Identifier>() && Peek<Token_Identifier>(0).name == "style") // <-- Добавлено
+		    {
+			    Consume<Token_Identifier>();
+			    isStyle = true;
+			    SkipTerminators();
 		    }
 
 		    string key = null;
@@ -70,7 +78,8 @@ namespace REDIZIT.RUI
 
 		    Node_Element element = new() { 
 		        key = key,
-		        isTemplate = isTemplate 
+		        isTemplate = isTemplate,
+		        isStyle = isStyle
 		    };
 
 		    SkipTerminators();
@@ -81,7 +90,7 @@ namespace REDIZIT.RUI
 		        SkipTerminators();
 		        while (!IsAtEnd() && !Check<Token_BlockClose>())
 		        {
-			        if (IsComponentStart())
+			        if (IsComponentStart(element.isStyle))
 			        {
 				        element.components.Add(ParseComponent());
 			        }
@@ -117,53 +126,83 @@ namespace REDIZIT.RUI
 		    return element;
 		}
 
-        private bool IsComponentStart()
-        {
-            if (!Check<Token_Identifier>()) return false;
+		private bool IsComponentStart(bool isInsideStyle = false)
+		{
+			if (!Check<Token_Identifier>()) return false;
 
-            // Type: ...
-            if (Check<Token_Colon>(1)) return true;
+			// Type: ...
+			if (Check<Token_Colon>(1)) return true;
 
-            // Type#id: ...
-            if (Check<Token_Hash>(1) && Check<Token_Identifier>(2) && Check<Token_Colon>(3)) return true;
+			// Type#id: ...
+			if (Check<Token_Hash>(1) && Check<Token_Identifier>(2) && Check<Token_Colon>(3)) return true;
 
-            return false;
-        }
+			// Внутри style разрешен блочный синтаксис: Type { ... } и Type#id { ... }
+			if (isInsideStyle)
+			{
+				if (Check<Token_BlockOpen>(1)) return true;
+				if (Check<Token_Hash>(1) && Check<Token_Identifier>(2) && Check<Token_BlockOpen>(3)) return true;
+			}
 
-        private Node_Component ParseComponent()
-        {
-	        logger.LogDebug("Parse Component");
-	        
-            Token_Identifier typeIdent = Consume<Token_Identifier>();
-            string id = null;
+			return false;
+		}
 
-            if (Check<Token_Hash>())
-            {
-                Consume<Token_Hash>();
-                id = Consume<Token_Identifier>("Ожидался идентификатор после #").name;
-            }
+		private Node_Component ParseComponent()
+		{
+			Token_Identifier typeIdent = Consume<Token_Identifier>();
+			string id = null;
 
-            Consume<Token_Colon>();
+			if (Check<Token_Hash>())
+			{
+				Consume<Token_Hash>();
+				id = Consume<Token_Identifier>("Ожидался идентификатор после #").name;
+			}
 
-            Node_Component comp = new Node_Component
-            {
-                typeName = typeIdent.name,
-                id = id
-            };
+			bool isBlock = false;
+			if (Check<Token_BlockOpen>())
+			{
+				Consume<Token_BlockOpen>();
+				isBlock = true;
+			}
+			else
+			{
+				Consume<Token_Colon>();
+			}
 
-            SkipSpacesOnly();
+			Node_Component comp = new Node_Component
+			{
+				typeName = typeIdent.name,
+				id = id
+			};
 
-            if (Check<Token_Identifier>() && Check<Token_Assign>(1))
-            {
-                while (!IsAtEnd() && Check<Token_Identifier>() && Check<Token_Assign>(1))
-                {
-                    comp.properties.Add(ParseSingleProperty());
-                    SkipSpacesOnly();
-                }
-            }
+			SkipSpacesOnly();
 
-            return comp;
-        }
+			if (isBlock)
+			{
+				SkipTerminators();
+				while (!IsAtEnd() && !Check<Token_BlockClose>())
+				{
+					if (Check<Token_Identifier>() && Check<Token_Assign>(1))
+					{
+						comp.properties.Add(ParseSingleProperty());
+					}
+					SkipTerminators();
+				}
+				Consume<Token_BlockClose>();
+			}
+			else
+			{
+				if (Check<Token_Identifier>() && Check<Token_Assign>(1))
+				{
+					while (!IsAtEnd() && Check<Token_Identifier>() && Check<Token_Assign>(1))
+					{
+						comp.properties.Add(ParseSingleProperty());
+						SkipSpacesOnly();
+					}
+				}
+			}
+
+			return comp;
+		}
 
         private Node_Property ParseSingleProperty()
         {

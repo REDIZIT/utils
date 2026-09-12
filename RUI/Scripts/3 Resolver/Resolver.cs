@@ -1,5 +1,6 @@
 ﻿using System;
 using Microsoft.Extensions.Logging;
+using UnityEngine;
 
 namespace REDIZIT.RUI
 {
@@ -15,6 +16,7 @@ namespace REDIZIT.RUI
 		public void Resolve(Node_Root root, Module module)
 		{
 			CollectTemplates(root, module);
+			CollectStyles(root, module);
 		}
 		
 		private void CollectTemplates(Node_Root rootNode, Module module)
@@ -69,6 +71,49 @@ namespace REDIZIT.RUI
 	        module.SetTemplate(compType, templateNode);
 	        
 	        logger.LogDebug($"Template registered for component type '{compType.Name}'");
+        }
+        
+        private void CollectStyles(Node_Root rootNode, Module module)
+        {
+	        for (int i = rootNode.elements.Count - 1; i >= 0; i--)
+	        {
+		        Node_Element element = rootNode.elements[i];
+		        if (element.isStyle)
+		        {
+			        ProcessStyleNode(element, module);
+			        rootNode.elements.RemoveAt(i);
+		        }
+		        else
+		        {
+			        CollectStylesRecursive(element, module);
+		        }
+	        }
+        }
+
+        private void CollectStylesRecursive(Node_Element node, Module module)
+        {
+	        for (int i = node.children.Count - 1; i >= 0; i--)
+	        {
+		        Node_Element child = node.children[i];
+		        if (child.isStyle)
+		        {
+			        ProcessStyleNode(child, module);
+			        node.children.RemoveAt(i);
+		        }
+		        else
+		        {
+			        CollectStylesRecursive(child, module);
+		        }
+	        }
+        }
+
+        private void ProcessStyleNode(Node_Element styleNode, Module module)
+        {
+	        if (string.IsNullOrEmpty(styleNode.key))
+		        throw new ResolveException("Style must have a name");
+
+	        module.SetStyle(styleNode.key, styleNode);
+	        logger.LogDebug($"Style registered: '{styleNode.key}' with {styleNode.components.Count} component rules");
         }
 
 		private Type FindFirstComponentType(Node_Element node, Module module)

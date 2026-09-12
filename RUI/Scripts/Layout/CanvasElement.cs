@@ -24,7 +24,21 @@ namespace REDIZIT.RUI
         private readonly List<CanvasElement> children = new();
         private readonly List<CanvasComponent> components = new();
         
+        public Node_Element sourceNode; // Исходная AST нода элемента для оверрайда свойств
+        private string _style;
         private bool _isEnabled = true;
+        
+        public string style
+        {
+	        get => _style;
+	        set
+	        {
+		        if (_style == value) return;
+		        _style = value;
+		        ApplyStyles();
+		        MarkDirty();
+	        }
+        }
         
         public bool isEnabled
         {
@@ -312,6 +326,27 @@ namespace REDIZIT.RUI
 	        foreach (CanvasElement child in children)
 	        {
 		        child.PrintTree(b, depth + 1);
+	        }
+        }
+        
+        // Получение стиля с учетом каскада от родителей
+        public string GetEffectiveStyle()
+        {
+	        if (!string.IsNullOrEmpty(_style)) return _style;
+	        return parent?.GetEffectiveStyle();
+        }
+
+        public void ApplyStyles()
+        {
+	        reconciler?.ApplyStylesToElement(this);
+
+	        // Каскадное обновление дочерних узлов, не имеющих своего стиля
+	        foreach (CanvasElement child in children)
+	        {
+		        if (string.IsNullOrEmpty(child._style))
+		        {
+			        child.ApplyStyles();
+		        }
 	        }
         }
     }
