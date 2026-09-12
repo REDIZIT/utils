@@ -10,6 +10,9 @@ namespace REDIZIT.RUI
         public Color color = Color.white;
         public Material material;
         public float4 borderRadius = float4.zero;
+        
+        public Color borderColor = Color.clear;
+        public float4 borderThickness = float4.zero;
 
         private ImageMode internalMode = ImageMode.Simple;
         private float2 internalTileSize = float2.zero;
@@ -26,6 +29,26 @@ namespace REDIZIT.RUI
 	        {
 		        if (color.Equals(value) == false) MarkDirty();
 		        color = value;
+	        }
+        }
+        
+        public Color BorderColor
+        {
+	        get => borderColor;
+	        set
+	        {
+		        if (borderColor.Equals(value) == false) MarkDirty();
+		        borderColor = value;
+	        }
+        }
+
+        public float4 BorderThickness
+        {
+	        get => borderThickness;
+	        set
+	        {
+		        if (math.all(borderThickness == value) == false) MarkDirty();
+		        borderThickness = value;
 	        }
         }
 
@@ -125,14 +148,14 @@ namespace REDIZIT.RUI
             
             if (mode == ImageMode.Simple)
             {
-                float4 uvRect = float4.zero;
-                if (internalSprite != null)
-                {
-                    Vector4 outer = DataUtility.GetOuterUV(internalSprite);
-                    uvRect = new float4(outer.x, outer.y, outer.z, outer.w);
-                }
+	            float4 uvRect = float4.zero;
+	            if (internalSprite != null)
+	            {
+		            Vector4 outer = DataUtility.GetOuterUV(internalSprite);
+		            uvRect = new float4(outer.x, outer.y, outer.z, outer.w);
+	            }
 
-                ctx.AppendQuad(totalSize, localToRoot, color, clampedRadius, uvRect);
+	            ctx.AppendQuad(totalSize, localToRoot, color, clampedRadius, uvRect, borderThickness, borderColor);
             }
             else if (mode == ImageMode.Tiling)
             {
