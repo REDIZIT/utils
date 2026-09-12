@@ -22,6 +22,11 @@ public static class ReactiveExtensions
 		container.AddTo(behaviour);
 	}
 	
+	public static void Restart(this SubsContainer container)
+	{
+		container.Clear();
+	}
+	
 	public static SubsContainer Subscribe(this SubsContainer container, Action drawLogic)
 	{
 		container.Add(new AutoSub(drawLogic));

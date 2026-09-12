@@ -8,6 +8,7 @@ namespace REDIZIT.RUI
     public class Image : CanvasComponent, IMeasurable
     {
         public Color color = Color.white;
+        public Color? multiplyColor;
         public Material material;
         public float4 borderRadius = float4.zero;
         
@@ -29,6 +30,19 @@ namespace REDIZIT.RUI
 	        {
 		        if (color.Equals(value) == false) MarkDirty();
 		        color = value;
+	        }
+        }
+        
+        public Color? MultiplyColor
+        {
+	        get => multiplyColor;
+	        set
+	        {
+		        if (multiplyColor.Equals(value) == false)
+		        {
+			        multiplyColor = value;
+			        MarkDirty();
+		        }
 	        }
         }
         
@@ -138,6 +152,8 @@ namespace REDIZIT.RUI
 
             float2 totalSize = Transform.size;
             if (totalSize.x <= 0 || totalSize.y <= 0) return;
+            
+            Color finalColor = multiplyColor.HasValue ? (color * multiplyColor.Value) : color;
 
             ctx.SetLayer(sprite == null ? CanvasGenerationContext.Layer.Background : CanvasGenerationContext.Layer.Content);
             ctx.SetMaterial(targetMat);
@@ -155,7 +171,7 @@ namespace REDIZIT.RUI
 		            uvRect = new float4(outer.x, outer.y, outer.z, outer.w);
 	            }
 
-	            ctx.AppendQuad(totalSize, localToRoot, color, clampedRadius, uvRect, borderThickness, borderColor);
+	            ctx.AppendQuad(totalSize, localToRoot, finalColor, clampedRadius, uvRect, borderThickness, borderColor);
             }
             else if (mode == ImageMode.Tiling)
             {
@@ -206,7 +222,7 @@ namespace REDIZIT.RUI
                         float tileU1 = math.lerp(uMin, uMax, uFrac);
 
                         float4 tileUv = new float4(tileU0, tileV0, tileU1, tileV1);
-                        ctx.AppendQuad(new float2(x, y), new float2(currentW, currentH), localToRoot, color, float4.zero, tileUv);
+                        ctx.AppendQuad(new float2(x, y), new float2(currentW, currentH), localToRoot, finalColor, float4.zero, tileUv);
                     }
                 }
             }
