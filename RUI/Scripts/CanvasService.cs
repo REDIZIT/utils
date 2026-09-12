@@ -137,5 +137,16 @@ namespace REDIZIT.RUI
 	        materialCache[key] = newMat;
 	        return newMat;
         }
+
+        public CanvasTemplate GetTemplate(Type compType)
+        {
+	        if (TryGetTemplate(compType, out CanvasTemplate template)) return template;
+	        else throw new($"Template of type '{compType.Name}' not found");
+        }
+        
+        public bool TryGetTemplate(Type compType, out CanvasTemplate template)
+        {
+	        return module.templates.TryGetValue(compType, out template);
+        }
     }
 }

@@ -93,10 +93,8 @@ namespace REDIZIT.RUI
 			{
 				if (Input.GetMouseButtonDown(0))
 				{
-					Vector4 bounds = Element.GetScreenBounds();
-					Vector3 mouse = Input.mousePosition;
-					bool clickedInside = mouse.x >= bounds.x && mouse.x <= bounds.z &&
-					                     mouse.y >= bounds.y && mouse.y <= bounds.w;
+					Rect bounds = Element.GetScreenBounds();
+					bool clickedInside = bounds.Contains(Input.mousePosition);
 
 					if (!clickedInside)
 					{

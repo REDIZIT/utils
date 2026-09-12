@@ -6,7 +6,7 @@ namespace REDIZIT.RUI
 	{
 		public bool enabled = true;
 
-		public Vector4 GetWorldClipRect()
+		public Rect GetWorldClipRect()
 		{
 			if (Element == null) return CanvasGenerationContext.InfiniteClipRect;
 			return Element.GetScreenBounds();

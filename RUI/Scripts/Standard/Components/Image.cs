@@ -19,6 +19,16 @@ namespace REDIZIT.RUI
         
         public CanvasService canvasService;
 
+        public Color Color
+        {
+	        get => color;
+	        set
+	        {
+		        if (color.Equals(value) == false) MarkDirty();
+		        color = value;
+	        }
+        }
+
         public ImageMode mode
         {
             get => internalMode;

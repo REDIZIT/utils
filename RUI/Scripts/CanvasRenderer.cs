@@ -196,7 +196,7 @@ namespace REDIZIT.RUI
 		    return RaycastRecursive(root, screenPos, null);
 		}
 
-		private CanvasElement RaycastRecursive(CanvasElement element, Vector2 screenPos, Vector4? currentClipRect)
+		private CanvasElement RaycastRecursive(CanvasElement element, Vector2 screenPos, Rect? currentClipRect)
 		{
 		    if (!element.isEnabled) return null;
 
@@ -204,7 +204,7 @@ namespace REDIZIT.RUI
 		    Mask mask = element.TryGetComponent<Mask>();
 		    if (mask != null && mask.enabled)
 		    {
-		        Vector4 maskRect = mask.GetWorldClipRect();
+		        Rect maskRect = mask.GetWorldClipRect();
 		        currentClipRect = currentClipRect.HasValue 
 		            ? IntersectRects(currentClipRect.Value, maskRect) 
 		            : maskRect;
@@ -213,9 +213,9 @@ namespace REDIZIT.RUI
 		    // Если точка отсечена внешней маской — глубже не идем
 		    if (currentClipRect.HasValue)
 		    {
-		        Vector4 clip = currentClipRect.Value;
-		        if (screenPos.x < clip.x || screenPos.x > clip.z ||
-		            screenPos.y < clip.y || screenPos.y > clip.w)
+		        Rect clip = currentClipRect.Value;
+		        if (screenPos.x < clip.xMin || screenPos.x > clip.xMax ||
+		            screenPos.y < clip.yMin || screenPos.y > clip.yMax)
 		        {
 		            return null;
 		        }
@@ -225,42 +225,41 @@ namespace REDIZIT.RUI
 		    var children = element.Children;
 		    if (children.Count > 0)
 		    {
-			    bool hasCustomLayers = false;
-			    for (int i = 0; i < children.Count; i++)
-			    {
-				    if (children.ElementAt(i).layerOffset != 0)
-				    {
-					    hasCustomLayers = true;
-					    break;
-				    }
-			    }
+		        bool hasCustomLayers = false;
+		        for (int i = 0; i < children.Count; i++)
+		        {
+		            if (children.ElementAt(i).layerOffset != 0)
+		            {
+		                hasCustomLayers = true;
+		                break;
+		            }
+		        }
 
-			    if (!hasCustomLayers)
-			    {
-				    // Быстрый путь без аллокаций: идем с конца к началу
-				    for (int i = children.Count - 1; i >= 0; i--)
-				    {
-					    CanvasElement child = children.ElementAt(i);
-					    CanvasElement hit = RaycastRecursive(child, screenPos, currentClipRect);
-					    if (hit != null) return hit;
-				    }
-			    }
-			    else
-			    {
-				    // Если у элементов есть разные слои: элементы с высоким слоем опрашиваются первыми
-				    var sorted = children.OrderByDescending(c => c.layerOffset);
-				    foreach (var child in sorted)
-				    {
-					    CanvasElement hit = RaycastRecursive(child, screenPos, currentClipRect);
-					    if (hit != null) return hit;
-				    }
-			    }
+		        if (!hasCustomLayers)
+		        {
+		            // Быстрый путь без аллокаций: идем с конца к началу
+		            for (int i = children.Count - 1; i >= 0; i--)
+		            {
+		                CanvasElement child = children.ElementAt(i);
+		                CanvasElement hit = RaycastRecursive(child, screenPos, currentClipRect);
+		                if (hit != null) return hit;
+		            }
+		        }
+		        else
+		        {
+		            // Если у элементов есть разные слои: элементы с высоким слоем опрашиваются первыми
+		            var sorted = children.OrderByDescending(c => c.layerOffset);
+		            foreach (var child in sorted)
+		            {
+		                CanvasElement hit = RaycastRecursive(child, screenPos, currentClipRect);
+		                if (hit != null) return hit;
+		            }
+		        }
 		    }
 
 		    // 3. Проверяем сам элемент: попадает ли точка в его физические границы на экране
-		    Vector4 bounds = element.GetScreenBounds();
-		    if (screenPos.x >= bounds.x && screenPos.x <= bounds.z &&
-		        screenPos.y >= bounds.y && screenPos.y <= bounds.w)
+		    Rect bounds = element.GetScreenBounds();
+		    if (bounds.Contains(screenPos))
 		    {
 		        // Проверяем, блокирует ли этот элемент луч (есть ли на нем визуал или инпут)
 		        if (IsRaycastBlocker(element))
@@ -306,14 +305,14 @@ namespace REDIZIT.RUI
 		    return false;
 		}
 
-		private static Vector4 IntersectRects(Vector4 a, Vector4 b)
+		private static Rect IntersectRects(Rect a, Rect b)
 		{
-		    return new Vector4(
-		        math.max(a.x, b.x),
-		        math.max(a.y, b.y),
-		        math.min(a.z, b.z),
-		        math.min(a.w, b.w)
-		    );
+			return Rect.MinMaxRect(
+				math.max(a.xMin, b.xMin),
+				math.max(a.yMin, b.yMin),
+				math.min(a.xMax, b.xMax),
+				math.min(a.yMax, b.yMax)
+			);
 		}
 	}
 }

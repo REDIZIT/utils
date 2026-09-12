@@ -259,7 +259,7 @@ namespace REDIZIT.RUI
 	        ctx.currentLayerOffset = previousOffset;
         }
 
-        public Vector4 GetScreenBounds()
+        public Rect GetScreenBounds()
         {
             Matrix4x4 m = LocalToRoot;
 
@@ -275,7 +275,7 @@ namespace REDIZIT.RUI
             float maxX = math.max(math.max(p0.x, p1.x), math.max(p2.x, p3.x));
             float maxY = math.max(math.max(p0.y, p1.y), math.max(p2.y, p3.y));
 
-            return new(minX, minY, maxX, maxY);
+            return Rect.MinMaxRect(minX, minY, maxX, maxY);
         }
 
         public string GetPath()

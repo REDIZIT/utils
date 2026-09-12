@@ -119,14 +119,9 @@ namespace REDIZIT.RUI
 	        }
 
 	        // --- 1. КУЛЛИНГ ---
-	        Vector4 clip = ctx.CurrentClipRect;
-	        Vector4 bounds = Element.GetScreenBounds();
-
-	        if (bounds.z < clip.x || bounds.x > clip.z ||
-	            bounds.w < clip.y || bounds.y > clip.w)
-	        {
-		        return;
-	        }
+	        Rect clip = ctx.CurrentClipRect;
+	        Rect bounds = Element.GetScreenBounds();
+	        if (clip.Overlaps(bounds) == false) return;
 
 	        // Раскладываем глифы
 	        TextEngine.LayoutSubpixel(text, subpixelFont, Transform.size, alignment, cachedGlyphs);
@@ -151,8 +146,8 @@ namespace REDIZIT.RUI
 		        float gMaxY = Mathf.Max(glyphWorldMin.y, glyphWorldMax.y);
 
 		        // Если конкретная буква целиком вне маски — пропускаем квад
-		        if (gMaxX < clip.x || gMinX > clip.z ||
-		            gMaxY < clip.y || gMinY > clip.w)
+		        if (gMaxX < clip.min.x || gMinX > clip.max.x ||
+		            gMaxY < clip.min.y || gMinY > clip.max.y)
 		        {
 			        continue;
 		        }

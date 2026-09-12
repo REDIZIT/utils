@@ -136,9 +136,8 @@ namespace REDIZIT.RUI
             var mask = element.TryGetComponent<Mask>();
             if (mask != null && mask.enabled)
             {
-                Vector4 clip = mask.GetWorldClipRect();
-                if (point.x < clip.x || point.x > clip.z || point.y < clip.y || point.y > clip.w)
-                    return false;
+                Rect clip = mask.GetWorldClipRect();
+                if (clip.Contains(point) == false) return false;
             }
 
             // Идем с конца (последние отрисованные дети - сверху)
@@ -147,8 +146,8 @@ namespace REDIZIT.RUI
                 HitTest(element.Children.ElementAt(i), point, results);
             }
 
-            Vector4 bounds = element.GetScreenBounds();
-            if (point.x >= bounds.x && point.x <= bounds.z && point.y >= bounds.y && point.y <= bounds.w)
+            Rect bounds = element.GetScreenBounds();
+            if (bounds.Contains(point))
             {
                 results.Add(element);
                 return true;
