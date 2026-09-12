@@ -6,7 +6,7 @@ using Zenject;
 
 namespace REDIZIT.RUI
 {
-    public class Label : CanvasComponent, IMeasurable
+	public class Label : CanvasComponent, IMeasurable
     {
         private string internalText = "Label";
         private int internalFontSize = 13;

@@ -106,6 +106,13 @@ namespace REDIZIT.RUI
 		        lbl.assetDatabase = this.assetDatabase;
 		        return lbl;
 	        }
+	        if (type == typeof(TextBox))
+	        {
+		        var tb = new TextBox();
+		        tb.canvasService = this;
+		        tb.assetDatabase = this.assetDatabase;
+		        return tb;
+	        }
 
 	        // Для остальных типов кэшируем делегат Activator
 	        if (!fastFactories.TryGetValue(type, out var factory))

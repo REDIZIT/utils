@@ -296,9 +296,10 @@ namespace REDIZIT.RUI
 		            if (image.color.a > 0.001f || image.sprite != null) return true;
 		        }
 
-		        if (comp is Label label && !string.IsNullOrEmpty(label.text))
+		        if ((comp is Label label && !string.IsNullOrEmpty(label.text)) ||
+		            (comp is TextBox textBox && !string.IsNullOrEmpty(textBox.text)))
 		        {
-		            return true;
+			        return true;
 		        }
 		    }
 
