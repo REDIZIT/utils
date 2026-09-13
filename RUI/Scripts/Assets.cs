@@ -11,7 +11,7 @@ using UnityEditor;
 
 namespace REDIZIT.RUI
 {
-    public class Assets : IInitializable, IDisposable
+    public class Assets : IDisposable
     {
 	    private readonly Dictionary<string, string> fileSources = new();
         private readonly Dictionary<string, Node_Root> fileAsts = new();

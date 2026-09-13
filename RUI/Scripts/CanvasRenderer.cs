@@ -39,11 +39,9 @@ namespace REDIZIT.RUI
 			Instance = this;
 		}
 
-		public void Start()
+		public void Awake()
 		{
 			cam = Camera.main;
-			
-			if (canvasService == null || rootFile == null || assetDatabase == null) return;
 
 			InitResources();
 			LoadRootScreen();
@@ -57,6 +55,8 @@ namespace REDIZIT.RUI
 			// Материал для субпиксельного шейдера
 			var subpixelShader = Shader.Find("REDIZIT/RUI/SubpixelText");
 			Material subpixelMat = subpixelShader != null ? new Material(subpixelShader) : null;
+			
+			assetDatabase.Initialize();
 
 			// Если в UIAssetDatabase нашелся любой шрифт — берем его дефолтным:
 			byte[] defaultFont = assetDatabase.fontBytes.Values.FirstOrDefault();
@@ -67,6 +67,8 @@ namespace REDIZIT.RUI
 
 		private void LoadRootScreen()
 		{
+			Debug.Log("LoadRootScreen");
+			
 #if UNITY_EDITOR
 			rootFilePath = Path.GetFullPath(AssetDatabase.GetAssetPath(rootFile));
 #endif
@@ -93,6 +95,8 @@ namespace REDIZIT.RUI
 			reconciler.NotifyAttached();
     
 			MarkDirty();
+			
+			Debug.Log("Loadede");
 		}
 
 		private void OnAnyUIFileChanged(string changedPath)
@@ -162,6 +166,12 @@ namespace REDIZIT.RUI
 	        
 				isDirty = false;
 			}
+		}
+
+		public T Resolve<T>() where T : CanvasComponent
+		{
+			if (root.TryGetComponentInChildren(out T comp) == false) throw new($"No component of type '{typeof(T)}' found");
+			return comp;
 		}
 		
 		private float2 GetScreenSize()

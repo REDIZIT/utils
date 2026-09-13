@@ -186,13 +186,34 @@ namespace REDIZIT.RUI
 	        MarkDirty();
         }
 
-        public T? TryGetComponent<T>() where T : class
+        public T? TryGetComponent<T>() where T : CanvasComponent
+        {
+	        foreach (CanvasComponent c in components) if (c is T match) return match;
+	        return null;
+        }
+        
+        public bool TryGetComponent<T>(out T comp) where T : CanvasComponent
         {
 	        foreach (CanvasComponent c in components)
 	        {
-		        if (c is T match) return match;
+		        if (c is T match)
+		        {
+			        comp = match;
+			        return true;
+		        }
 	        }
-	        return null;
+	        comp = null;
+	        return false;
+        }
+        
+        public bool TryGetComponentInChildren<T>(out T comp) where T : CanvasComponent
+        {
+	        if (TryGetComponent(out comp)) return true;
+	        foreach (CanvasElement child in children)
+	        {
+		        if (child.TryGetComponentInChildren(out comp)) return true;
+	        }
+	        return false;
         }
         
         public CanvasComponent? TryGetComponent(Type type, string? name = null)
