@@ -67,8 +67,6 @@ namespace REDIZIT.RUI
 
 		private void LoadRootScreen()
 		{
-			Debug.Log("LoadRootScreen");
-			
 #if UNITY_EDITOR
 			rootFilePath = Path.GetFullPath(AssetDatabase.GetAssetPath(rootFile));
 #endif
@@ -95,8 +93,6 @@ namespace REDIZIT.RUI
 			reconciler.NotifyAttached();
     
 			MarkDirty();
-			
-			Debug.Log("Loadede");
 		}
 
 		private void OnAnyUIFileChanged(string changedPath)

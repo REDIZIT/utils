@@ -25,7 +25,6 @@ namespace REDIZIT.RUI
 		private float caretBlinkTimer = 0f;
 		private bool caretVisible = true;
 
-		// Ссылка на активное сфокусированное поле во всем приложении
 		public static InputField ActiveField { get; private set; }
 
 		[Inject] private CanvasService service;
@@ -47,8 +46,42 @@ namespace REDIZIT.RUI
 			{
 				Focus();
 
-				// Ставим каретку в конец строки при клике (или рассчитываем по координатам)
-				caretPosition = text.Length;
+				// Точный расчет позиции каретки по координате клика с учетом выравнивания
+				if (targetLabel != null && targetLabel.subpixelFont != null && !string.IsNullOrEmpty(text))
+				{
+					float localClickX = Element.LocalToRoot.inverse.MultiplyPoint3x4(Input.mousePosition).x;
+					float startX = GetTextStartX(text);
+					float clickOffset = localClickX - startX;
+
+					if (clickOffset <= 0f)
+					{
+						caretPosition = 0;
+					}
+					else
+					{
+						float accumulated = 0f;
+						int pos = text.Length;
+
+						for (int i = 0; i < text.Length; i++)
+						{
+							var glyph = targetLabel.subpixelFont.GetGlyph(text[i]);
+							float adv = glyph != null ? glyph.advance : 0f;
+							if (accumulated + adv * 0.5f >= clickOffset)
+							{
+								pos = i;
+								break;
+							}
+							accumulated += adv;
+						}
+
+						caretPosition = pos;
+					}
+				}
+				else
+				{
+					caretPosition = text.Length;
+				}
+
 				ResetCaretBlink();
 				MarkDirty();
 			}
@@ -88,7 +121,6 @@ namespace REDIZIT.RUI
 		{
 			base.Update();
 
-			// Закрытие фокуса по клику мимо поля
 			if (isFocused)
 			{
 				if (Input.GetMouseButtonDown(0))
@@ -110,13 +142,12 @@ namespace REDIZIT.RUI
 					return;
 				}
 
-				// Мигание каретки (раз в 0.5 секунды)
 				caretBlinkTimer += Time.unscaledDeltaTime;
 				if (caretBlinkTimer >= 0.5f)
 				{
 					caretBlinkTimer = 0f;
 					caretVisible = !caretVisible;
-					MarkDirty(); // Перерисовываем каретку
+					MarkDirty();
 				}
 
 				HandleKeyboardInput();
@@ -127,7 +158,6 @@ namespace REDIZIT.RUI
 		{
 			bool textChanged = false;
 
-			// 1. Ввод символов (поддержка русского, английского и спецсимволов)
 			string input = Input.inputString;
 			for (int i = 0; i < input.Length; i++)
 			{
@@ -149,7 +179,7 @@ namespace REDIZIT.RUI
 					Unfocus();
 					return;
 				}
-				// Обычный печатаемый символ
+				// Печатаемый символ
 				else if (c >= 32)
 				{
 					text = text.Insert(caretPosition, c.ToString());
@@ -158,7 +188,6 @@ namespace REDIZIT.RUI
 				}
 			}
 
-			// 2. Управляющие клавиши (стрелочки, Delete)
 			if (Input.GetKeyDown(KeyCode.Delete))
 			{
 				if (caretPosition < text.Length)
@@ -242,16 +271,43 @@ namespace REDIZIT.RUI
 			MarkDirty();
 		}
 
+		// Вычисляет начальную точку отрисовки текста по оси X в зависимости от выравнивания
+		private float GetTextStartX(string str)
+		{
+			if (targetLabel == null || targetLabel.subpixelFont == null) return 0f;
+
+			float containerWidth = Transform.size.x;
+			float textWidth = 0f;
+			if (!string.IsNullOrEmpty(str))
+			{
+				textWidth = TextEngine.MeasureSubpixel(str, targetLabel.subpixelFont).x;
+			}
+
+			TextAlignmentOptions alignment = targetLabel.alignment;
+			if (alignment == TextAlignmentOptions.Center || alignment == TextAlignmentOptions.Midline)
+			{
+				return Mathf.Round((containerWidth - textWidth) * 0.5f);
+			}
+			if (alignment == TextAlignmentOptions.Right || alignment == TextAlignmentOptions.MidlineRight)
+			{
+				return Mathf.Round(containerWidth - textWidth);
+			}
+
+			return 0f;
+		}
+
 		public override void GenerateMesh(CanvasGenerationContext ctx)
 		{
 			base.GenerateMesh(ctx);
 
-			// Каретка рисуется только при активном фокусе и в фазе мигания
 			if (!isFocused || !caretVisible || targetLabel == null || targetLabel.subpixelFont == null)
 				return;
 
-			// 1. Вычисляем точную позицию каретки по оси X
-			float caretX = 0f;
+			// 1. Вычисляем смещение текста по X согласно выравниванию Label
+			float startX = GetTextStartX(text);
+
+			// 2. Добавляем длину текста до каретки
+			float textToCaretWidth = 0f;
 			int safeCaretPos = Mathf.Clamp(caretPosition, 0, text.Length);
 			string textToCaret = text.Substring(0, safeCaretPos);
 
@@ -260,29 +316,25 @@ namespace REDIZIT.RUI
 				var glyph = targetLabel.subpixelFont.GetGlyph(textToCaret[i]);
 				if (glyph != null)
 				{
-					caretX += glyph.advance;
+					textToCaretWidth += glyph.advance;
 				}
 			}
 
-			// 2. Размеры и вертикальное позиционирование каретки
+			float caretX = startX + textToCaretWidth;
+
+			// 3. Вертикальное центрирование каретки
 			float boxHeight = Transform.size.y;
 			float caretHeight = targetLabel.fontSize;
-	
-			// Центрируем каретку по вертикали внутри контейнера
 			float caretY = Mathf.Round((boxHeight - caretHeight) * 0.5f);
-			float caretWidth = 1.5f; // Четкая ширина в 1.5 - 2 пикселя
+			float caretWidth = 1.5f;
 
-			// 3. ВАЖНО: Используем стандартный материал для закраски цветом (НЕ шейдер шрифта!)
 			Material solidMat = service.defaultCombinedMaterial;
-
-			// Каретка рисуется на слое контента/текста, поверх фона
 			ctx.SetLayer(CanvasGenerationContext.Layer.Text);
 			ctx.SetMaterial(solidMat);
 
 			Matrix4x4 localToRoot = Element.LocalToRoot;
 
-			// 4. Отрисовываем полоску каретки
-			// Белый квад с цветом caretColor
+			// 4. Отрисовка каретки
 			ctx.AppendQuad(
 				new float2(caretWidth, caretHeight),
 				localToRoot * Matrix4x4.Translate(new Vector3(caretX, caretY, 0f)),
