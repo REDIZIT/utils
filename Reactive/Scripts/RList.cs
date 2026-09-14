@@ -42,6 +42,14 @@ public class RList<T> : ICollection<T>, IReactive
 		OnChanged();
 		onAdded?.Invoke(element);
 	}
+
+	public void Add(IEnumerable<T> elements)
+	{
+		foreach (T element in elements)
+		{
+			Add(element);
+		}
+	}
 	
 	public bool Remove(T item)
 	{
