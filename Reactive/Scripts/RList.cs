@@ -3,9 +3,10 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class RList<T> : ICollection<T>, IReactive
+public class RList<T> : ICollection<T>, IReactive, IReactiveCollection<T>
 {
-	public Action<T> onAdded, onRemoved;
+	public Action<T> onAdded { get; set; }
+	public Action<T> onRemoved { get; set; }
 	
 	private Action onChanged;
 	private List<T> ls = new();
