@@ -38,11 +38,17 @@ namespace REDIZIT.RUI
 	        get => multiplyColor;
 	        set
 	        {
-		        if (multiplyColor.Equals(value) == false)
+		        if (multiplyColor == null && value == null) return;
+
+		        if (multiplyColor != null && value != null)
 		        {
-			        multiplyColor = value;
-			        MarkDirty();
+			        Color a = multiplyColor.Value;
+			        Color b = value.Value;
+			        if (Mathf.Approximately(a.r, b.r) && Mathf.Approximately(a.g, b.g) && Mathf.Approximately(a.b, b.b) && Mathf.Approximately(a.a, b.a)) return;
 		        }
+
+		        multiplyColor = value;
+		        MarkDirty();
 	        }
         }
         
@@ -143,7 +149,7 @@ namespace REDIZIT.RUI
             return float2.zero;
         }
 
-        public override void GenerateMesh(CanvasGenerationContext ctx)
+        public override void GenerateMesh(CanvasGenerationContext ctx, Matrix4x4 localToRoot)
         {
 	        if (isEnabled == false) return;
 	        
@@ -157,7 +163,6 @@ namespace REDIZIT.RUI
 
             ctx.SetLayer(sprite == null ? CanvasGenerationContext.Layer.Background : CanvasGenerationContext.Layer.Content);
             ctx.SetMaterial(targetMat);
-            Matrix4x4 localToRoot = Element.LocalToRoot;
 
             float minSide = math.cmin(totalSize);
             float4 clampedRadius = math.min(borderRadius, minSide / 2f);

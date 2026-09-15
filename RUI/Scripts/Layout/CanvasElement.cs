@@ -55,84 +55,100 @@ namespace REDIZIT.RUI
         public IReadOnlyCollection<CanvasComponent> Components => components;
         
         public DesiredSize Measure(SizeConstraints constraints)
-        {
-	        // 1. Приоритет композиторам (Stack_Composer, Fill_Composer, SizedBox_Composer, Anchor_Composer):
-	        IMeasurable composer = components.OfType<IMeasurable>().FirstOrDefault(c => c is IComposer);
-	        if (composer != null)
-	        {
+		{
+		    // 1. Быстрый поиск композитора БЕЗ аллокаций и LINQ
+		    IMeasurable composer = null;
+		    for (int i = 0; i < components.Count; i++)
+		    {
+		        var comp = components[i];
+		        if (comp.isEnabled && comp is IMeasurable m && comp is IComposer)
+		        {
+		            composer = m;
+		            break;
+		        }
+		    }
+
+		    if (composer != null)
+		    {
 		        DesiredSize = composer.Measure(constraints);
 		        return DesiredSize;
-	        }
+		    }
 
-	        // 2. Если композитора нет, но ЕСТЬ ДЕТИ:
-	        // Контейнер (например MyHierarchy с фоновой картинкой) ОБЯЗАН измерить детей!
-	        if (children.Count > 0)
-	        {
+		    // 2. Дефолтный Measure для контейнеров с детьми
+		    if (children.Count > 0)
+		    {
 		        float childMaxWidth = 0;
 		        float childMaxHeight = 0;
 
-		        foreach (var child in children)
+		        for (int i = 0; i < children.Count; i++)
 		        {
-			        if (!child.isEnabled) continue;
-			        var size = child.Measure(constraints);
-			        childMaxWidth = math.max(childMaxWidth, size.x);
-			        childMaxHeight = math.max(childMaxHeight, size.y);
+		            var child = children[i];
+		            if (!child.isEnabled) continue;
+		            var size = child.Measure(constraints);
+		            childMaxWidth = math.max(childMaxWidth, size.x);
+		            childMaxHeight = math.max(childMaxHeight, size.y);
 		        }
 
 		        DesiredSize = constraints.Clamp(new DesiredSize(childMaxWidth, childMaxHeight));
 		        return DesiredSize;
-	        }
+		    }
 
-	        // 3. Если детей нет — это листовой элемент (Image, Label и т.д.):
-	        IMeasurable leaf = components.OfType<IMeasurable>().FirstOrDefault();
-	        if (leaf != null)
-	        {
-		        DesiredSize = leaf.Measure(constraints);
-		        return DesiredSize;
-	        }
-
-	        // 4. Пустой узел
-	        DesiredSize = constraints.Clamp(new DesiredSize(0, 0));
-	        return DesiredSize;
-        }
-
-        public void Arrange(ArrangeRect rect)
-        {
-	        // 1. Вычисляем трансформацию с учетом VisualTransform (если есть)
-	        VisualTransform vt = TryGetComponent<VisualTransform>();
-	        if (vt != null)
-	        {
-		        transform = ResolvedTransform.FromRect(rect, vt.angle, vt.scale);
-	        }
-	        else
-	        {
-		        transform = ResolvedTransform.FromRect(rect);
-	        }
-
-	        // 2. Размещаем детей
-	        if (children.Count > 0)
-	        {
-		        // Ищем IComposer безопасно через FirstOrDefault, а не First!
-		        IComposer c = components.OfType<IComposer>().FirstOrDefault();
-
-		        if (c != null)
+		    // 3. Листовые компоненты (Image, Label)
+		    for (int i = 0; i < components.Count; i++)
+		    {
+		        var comp = components[i];
+		        if (comp.isEnabled && comp is IMeasurable m)
 		        {
-			        // Если есть композитор — он решает, как расставить детей
-			        c.Arrange(rect);
+		            DesiredSize = m.Measure(constraints);
+		            return DesiredSize;
+		        }
+		    }
+
+		    DesiredSize = constraints.Clamp(new DesiredSize(0, 0));
+		    return DesiredSize;
+		}
+
+		public void Arrange(ArrangeRect rect)
+		{
+		    VisualTransform vt = TryGetComponent<VisualTransform>();
+		    if (vt != null)
+		    {
+		        transform = ResolvedTransform.FromRect(rect, vt.angle, vt.scale);
+		    }
+		    else
+		    {
+		        transform = ResolvedTransform.FromRect(rect);
+		    }
+
+		    if (children.Count > 0)
+		    {
+		        // Ищем IComposer быстрым циклом без LINQ
+		        IComposer composer = null;
+		        for (int i = 0; i < components.Count; i++)
+		        {
+		            if (components[i].isEnabled && components[i] is IComposer c)
+		            {
+		                composer = c;
+		                break;
+		            }
+		        }
+
+		        if (composer != null)
+		        {
+		            composer.Arrange(rect);
 		        }
 		        else
 		        {
-			        // ДЕФОЛТНЫЙ ARRANGE: если композитора нет,
-			        // дети занимают весь слот родителя в локальных координатах (0, 0)
-			        ArrangeRect defaultChildRect = new ArrangeRect(Unity.Mathematics.float2.zero, rect.size);
-			        foreach (CanvasElement child in children)
-			        {
-				        if (!child.isEnabled) continue;
-				        child.Arrange(defaultChildRect);
-			        }
+		            ArrangeRect defaultChildRect = new ArrangeRect(float2.zero, rect.size);
+		            for (int i = 0; i < children.Count; i++)
+		            {
+		                var child = children[i];
+		                if (!child.isEnabled) continue;
+		                child.Arrange(defaultChildRect);
+		            }
 		        }
-	        }
-        }
+		    }
+		}
 
         public void MarkDirty()
         {
@@ -266,11 +282,14 @@ namespace REDIZIT.RUI
             }
         }
 
-        public void RenderTree(CanvasGenerationContext ctx)
+        // Заменяем RenderTree: передаем мировую матрицу сверху вниз
+        public void RenderTree(CanvasGenerationContext ctx, Matrix4x4 parentMatrix)
         {
 	        if (!isEnabled) return;
 
-	        // Сохраняем старый офсет, чтобы вернуть его после отрисовки детей
+	        // Считаем мировую матрицу один раз:
+	        Matrix4x4 worldMatrix = parentMatrix * transform.LocalToParent;
+
 	        int previousOffset = ctx.currentLayerOffset;
 	        ctx.currentLayerOffset += layerOffset;
 
@@ -278,19 +297,26 @@ namespace REDIZIT.RUI
 	        bool hasMask = mask != null && mask.enabled;
 	        if (hasMask) ctx.PushClipRect(mask.GetWorldClipRect());
 
-	        foreach (CanvasComponent comp in components)
+	        for (int i = 0; i < components.Count; i++)
 	        {
-		        if (comp.isEnabled) comp.GenerateMesh(ctx);
+		        var comp = components[i];
+		        if (comp.isEnabled)
+		        {
+			        // Передаем worldMatrix прямо в GenerateMesh
+			        comp.GenerateMesh(ctx, worldMatrix);
+		        }
 	        }
-	        
-	        foreach (CanvasElement child in children)
+    
+	        for (int i = 0; i < children.Count; i++)
 	        {
-		        if (child.isEnabled) child.RenderTree(ctx);
+		        var child = children[i];
+		        if (child.isEnabled)
+		        {
+			        child.RenderTree(ctx, worldMatrix);
+		        }
 	        }
 
 	        if (hasMask) ctx.PopClipRect();
-
-	        // Возвращаем офсет назад
 	        ctx.currentLayerOffset = previousOffset;
         }
 

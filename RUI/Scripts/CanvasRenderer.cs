@@ -111,7 +111,11 @@ namespace REDIZIT.RUI
 			context.Dispose();
 		}
 
-		public void MarkDirty() => isDirty = true;
+		public void MarkDirty()
+		{
+			Debug.Log("Mark dirty canvas");
+			isDirty = true;
+		}
 
 		public void Update()
 		{
@@ -153,7 +157,7 @@ namespace REDIZIT.RUI
 				// 4. Render pass
 				Stopwatch w3 = Stopwatch.StartNew();
 				context.Clear();
-				root.RenderTree(context);
+				root.RenderTree(context, Matrix4x4.identity);
 				context.FinalizeBatches();
 				w3.Stop();
 				w.Stop();

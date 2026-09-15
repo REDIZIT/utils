@@ -157,7 +157,7 @@ namespace REDIZIT.RUI
             return constraints.Clamp(new DesiredSize(size));
         }
 
-        public override void GenerateMesh(CanvasGenerationContext ctx)
+        public override void GenerateMesh(CanvasGenerationContext ctx, Matrix4x4 localToRoot)
         {
             if (string.IsNullOrEmpty(text) || subpixelFont == null || fontMaterial == null)
                 return;
@@ -178,8 +178,6 @@ namespace REDIZIT.RUI
 
             ctx.SetLayer(CanvasGenerationContext.Layer.Text);
             ctx.SetMaterial(fontMaterial);
-
-            Matrix4x4 localToRoot = Element.LocalToRoot;
 
             for (int i = 0; i < cachedGlyphs.Count; i++)
             {

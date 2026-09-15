@@ -296,9 +296,9 @@ namespace REDIZIT.RUI
 			return 0f;
 		}
 
-		public override void GenerateMesh(CanvasGenerationContext ctx)
+		public override void GenerateMesh(CanvasGenerationContext ctx, Matrix4x4 localToRoot)
 		{
-			base.GenerateMesh(ctx);
+			base.GenerateMesh(ctx, localToRoot);
 
 			if (!isFocused || !caretVisible || targetLabel == null || targetLabel.subpixelFont == null)
 				return;
@@ -331,8 +331,6 @@ namespace REDIZIT.RUI
 			Material solidMat = service.defaultCombinedMaterial;
 			ctx.SetLayer(CanvasGenerationContext.Layer.Text);
 			ctx.SetMaterial(solidMat);
-
-			Matrix4x4 localToRoot = Element.LocalToRoot;
 
 			// 4. Отрисовка каретки
 			ctx.AppendQuad(
