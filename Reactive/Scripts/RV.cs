@@ -36,16 +36,18 @@ public class RV<T> : IReactive
 
 	public Action onSetValue;
 	public Action onChanged;
-	
+
+	private bool isReporter = true;
 	private T value;
 
 	public RV()
 	{
 	}
 
-	public RV(T defaultValue)
+	public RV(T defaultValue, bool isReporter = true)
 	{
 		value = defaultValue;
+		this.isReporter = isReporter;
 	}
 
 	public void SetValueWithoutNotify(T value)
@@ -55,7 +57,7 @@ public class RV<T> : IReactive
 
 	private void OnChanged()
 	{
-		ReactiveTracker.OnChanged(this);
+		if (isReporter) ReactiveTracker.OnChanged(this);
 		onChanged?.Invoke();
 	}
 
