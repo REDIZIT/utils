@@ -37,14 +37,14 @@ public class RV<T> : IReactive
 	public Action onSetValue;
 	public Action onChanged;
 
-	private bool isReporter = true;
+	public bool isReporter = true;
 	private T value;
 
 	public RV()
 	{
 	}
 
-	public RV(T defaultValue, bool isReporter = true)
+	public RV(T defaultValue)
 	{
 		value = defaultValue;
 		this.isReporter = isReporter;
