@@ -5,6 +5,24 @@ using UnityEngine;
 
 public class RList<T> : ICollection<T>, IReactive, IReactiveCollection<T>
 {
+	private ReactiveScope scope;
+
+	public ReactiveScope Scope
+	{
+		get => scope;
+		set
+		{
+			scope = value;
+			if (scope != null)
+			{
+				for (int i = 0; i < ls.Count; i++)
+				{
+					if (ls[i] != null) ScopeBinder.Bind(ls[i], scope);
+				}
+			}
+		}
+	}
+	
 	public Action<T> onAdded { get; set; }
 	public Action<T> onRemoved { get; set; }
 	
@@ -58,6 +76,12 @@ public class RList<T> : ICollection<T>, IReactive, IReactiveCollection<T>
 	
 	public void Add(T element)
 	{
+		// Каскадируем скоуп на новый элемент при добавлении в список
+		if (scope != null && element != null)
+		{
+			ScopeBinder.Bind(element, scope);
+		}
+		
 		AddWithoutNotify(element);
 		OnChanged();
 		onAdded?.Invoke(element);
@@ -121,7 +145,17 @@ public class RList<T> : ICollection<T>, IReactive, IReactiveCollection<T>
 		foreach (T e in ls) onRemoved?.Invoke(e);
 		ls.Clear();
 		
-		ls.AddRange(elements);
+		if (elements != null)
+		{
+			ls.AddRange(elements);
+			if (scope != null)
+			{
+				foreach (var e in elements)
+				{
+					if (e != null) ScopeBinder.Bind(e, scope);
+				}
+			}
+		}
 		OnChanged();
 	}
 
@@ -138,6 +172,7 @@ public class RList<T> : ICollection<T>, IReactive, IReactiveCollection<T>
 	private void OnChanged()
 	{
 		ReactiveTracker.OnChanged(this);
+		scope?.MarkDirty();
 		onChanged?.Invoke();
 	}
 	

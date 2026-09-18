@@ -3,6 +3,7 @@ using System.Collections.Generic;
 
 public interface IReactive
 {
+	ReactiveScope Scope { get; set; }
 	object RawValue { get; set; }
 	void Subscribe(Action callback);
 	void Unsubscribe(Action callback);

@@ -32,10 +32,4 @@ public static class ReactiveExtensions
 		container.Add(new AutoSub(drawLogic));
 		return container;
 	}
-	
-	public static RV<T> WithNoReport<T>(this RV<T> rv)
-	{
-		rv.isReporter = false;
-		return rv;
-	}
 }
