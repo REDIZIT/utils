@@ -3,6 +3,7 @@
 public static class ReactiveTracker
 {
 	public static HashSet<IReactive> CurrentDependencies;
+	public static List<IReactive> changedReactives = new();
 
 	// Очередь реакций, ожидающих выполнения
 	private static readonly HashSet<AutoSub> pendingAutoSubs = new();
@@ -11,6 +12,11 @@ public static class ReactiveTracker
 	public static void ReportRead(IReactive reactive)
 	{
 		CurrentDependencies?.Add(reactive);
+	}
+	
+	public static void OnChanged(IReactive reactive)
+	{
+		changedReactives.Add(reactive);
 	}
 
 	public static void Schedule(AutoSub sub)

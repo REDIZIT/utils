@@ -55,6 +55,7 @@ public class RV<T> : IReactive
 
 	private void OnChanged()
 	{
+		ReactiveTracker.OnChanged(this);
 		onChanged?.Invoke();
 	}
 
