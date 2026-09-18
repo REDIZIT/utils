@@ -27,6 +27,20 @@ public class RList<T> : ICollection<T>, IReactive, IReactiveCollection<T>
 		get => ls;
 		set => ls = value == null ? default : (List<T>)value;
 	}
+	
+	public T this[int index]
+	{
+		get
+		{
+			ReactiveTracker.ReportRead(this);
+			return ls[index];
+		}
+		set
+		{
+			ls[index] = value;
+			OnChanged();
+		}
+	}
 
 	public RList()
 	{
@@ -35,6 +49,11 @@ public class RList<T> : ICollection<T>, IReactive, IReactiveCollection<T>
 	public RList(List<T> defaultValue)
 	{
 		ls = defaultValue;
+	}
+	
+	public RList(int capacity)
+	{
+		ls = new(capacity);
 	}
 	
 	public void Add(T element)
