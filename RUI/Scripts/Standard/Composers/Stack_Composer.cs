@@ -27,9 +27,9 @@ namespace REDIZIT.RUI
 
 	public enum StackCrossAlign
 	{
-		Start,  // По нижнему краю (для Horizontal) / по левому (для Vertical)
-		Center, // ПО ЦЕНТРУ поперечной оси (идеально для строк с иконками и текстом)
-		End     // По верхнему краю (для Horizontal) / по правому (для Vertical)
+		Start,
+		Center,
+		End
 	}
 
 	public class Stack_Composer : CanvasComponent, IMeasurable, IComposer
@@ -37,7 +37,6 @@ namespace REDIZIT.RUI
 		public StackAxis axis = StackAxis.Vertical;
 		public CrossFill fillCross = CrossFill.None;
 		public StackAlign alignMain = StackAlign.Start;
-		// Для горизонтального стека по умолчанию ставим выравнивание по центру по высоте!
 		public StackCrossAlign alignCross = StackCrossAlign.Center; 
 		public float spacing = 0f;
 		public float4 padding = 0f; // x: left, y: top, z: right, w: bottom
@@ -62,22 +61,36 @@ namespace REDIZIT.RUI
 			};
 
 			float maxChildCross = 0f;
-			float totalMain = 0f;
+			float nonExpandedMain = 0f;
 			int visibleCount = 0;
+			int expandCount = 0;
 
 			foreach (CanvasElement child in Element.Children)
 			{
 				if (!child.isEnabled) continue;
+
+				Anchor anchor = child.TryGetComponent<Anchor>();
+				bool isExpand = anchor?.expand == true;
 
 				DesiredSize childSize = child.Measure(childConstraints);
 				float childMain = isVertical ? childSize.y : childSize.x;
 				float childCross = isVertical ? childSize.x : childSize.y;
 
 				maxChildCross = math.max(maxChildCross, childCross);
-				totalMain += childMain;
+
+				if (!isExpand)
+				{
+					nonExpandedMain += childMain;
+				}
+				else
+				{
+					expandCount++;
+				}
+
 				visibleCount++;
 			}
 
+			float totalMain = nonExpandedMain;
 			if (visibleCount > 1)
 			{
 				totalMain += spacing * (visibleCount - 1);
@@ -95,8 +108,19 @@ namespace REDIZIT.RUI
 				}
 			}
 
-			float finalDesiredWidth = isVertical ? (desiredCross + padCross) : (totalMain + padMain);
-			float finalDesiredHeight = isVertical ? (totalMain + padMain) : (desiredCross + padCross);
+			// Если есть растягиваемые элементы и родитель дал ограничение — забираем доступное место
+			float desiredMain = totalMain;
+			if (expandCount > 0)
+			{
+				AxisConstraints mainConstraint = isVertical ? innerConstraints.y : innerConstraints.x;
+				if (mainConstraint.TryGetMax(out float maxMainAvailable))
+				{
+					desiredMain = maxMainAvailable;
+				}
+			}
+
+			float finalDesiredWidth = isVertical ? (desiredCross + padCross) : (desiredMain + padMain);
+			float finalDesiredHeight = isVertical ? (desiredMain + padMain) : (desiredCross + padCross);
 
 			return constraints.Clamp(new DesiredSize(finalDesiredWidth, finalDesiredHeight));
 		}
@@ -108,18 +132,31 @@ namespace REDIZIT.RUI
 			IList<CanvasElement> childrenList = Element.Children as IList<CanvasElement> ?? Element.Children.ToList();
 			int count = childrenList.Count;
 
-			// 1. Длина детей по главной оси для alignMain
-			float totalChildrenMain = 0f;
+			// 1. Считаем размеры нерастягиваемых элементов и количество expand
+			float nonExpandedMain = 0f;
 			int visibleCount = 0;
+			int expandCount = 0;
+
 			for (int i = 0; i < count; i++)
 			{
 				CanvasElement child = childrenList[i];
 				if (!child.isEnabled) continue;
-				float childMain = isVertical ? child.DesiredSize.y : child.DesiredSize.x;
-				totalChildrenMain += childMain;
+
+				Anchor anchor = child.TryGetComponent<Anchor>();
+				if (anchor?.expand == true)
+				{
+					expandCount++;
+				}
+				else
+				{
+					float childMain = isVertical ? child.DesiredSize.y : child.DesiredSize.x;
+					nonExpandedMain += childMain;
+				}
+
 				visibleCount++;
 			}
-			if (visibleCount > 1) totalChildrenMain += spacing * (visibleCount - 1);
+
+			float totalSpacing = visibleCount > 1 ? spacing * (visibleCount - 1) : 0f;
 
 			// 2. Расчет контентной области
 			float padCrossStart = isVertical ? padding.x : padding.w; 
@@ -131,84 +168,101 @@ namespace REDIZIT.RUI
 				? math.max(0f, finalRect.size.y - (padding.y + padding.w))
 				: math.max(0f, finalRect.size.x - (padding.x + padding.z));
 
-			float freeMainSpace = math.max(0f, availableMain - totalChildrenMain);
+			// Расчет размера для expand элементов
+			float expandItemSize = 0f;
+			float freeMainSpace = 0f;
 
-			// 3. Начальная точка курсора главной оси (ДОБАВЛЕНО ОКРУГЛЕНИЕ)
-			float currentMain;
-			if (isVertical)
+			if (expandCount > 0)
 			{
-			    float topStart = Mathf.Round(finalRect.size.y - padding.y);
-			    if (alignMain == StackAlign.Center) topStart -= Mathf.Round(freeMainSpace * 0.5f);
-			    else if (alignMain == StackAlign.End) topStart -= Mathf.Round(freeMainSpace);
-			    currentMain = topStart;
+				float remainingMain = math.max(0f, availableMain - nonExpandedMain - totalSpacing);
+				expandItemSize = remainingMain / expandCount;
 			}
 			else
 			{
-			    float leftStart = Mathf.Round(padding.x);
-			    if (alignMain == StackAlign.Center) leftStart += Mathf.Round(freeMainSpace * 0.5f);
-			    else if (alignMain == StackAlign.End) leftStart += Mathf.Round(freeMainSpace);
-			    currentMain = leftStart;
+				freeMainSpace = math.max(0f, availableMain - (nonExpandedMain + totalSpacing));
+			}
+
+			// 3. Начальная точка курсора главной оси
+			float currentMain;
+			if (isVertical)
+			{
+				float topStart = Mathf.Round(finalRect.size.y - padding.y);
+				if (alignMain == StackAlign.Center) topStart -= Mathf.Round(freeMainSpace * 0.5f);
+				else if (alignMain == StackAlign.End) topStart -= Mathf.Round(freeMainSpace);
+				currentMain = topStart;
+			}
+			else
+			{
+				float leftStart = Mathf.Round(padding.x);
+				if (alignMain == StackAlign.Center) leftStart += Mathf.Round(freeMainSpace * 0.5f);
+				else if (alignMain == StackAlign.End) leftStart += Mathf.Round(freeMainSpace);
+				currentMain = leftStart;
 			}
 
 			// 4. Размещение детей
 			for (int i = 0; i < count; i++)
 			{
-			    int index = reverse ? (count - 1 - i) : i;
-			    CanvasElement child = childrenList[index];
+				int index = reverse ? (count - 1 - i) : i;
+				CanvasElement child = childrenList[index];
 
-			    if (!child.isEnabled) continue;
+				if (!child.isEnabled) continue;
 
-			    float childMain = isVertical ? child.DesiredSize.y : child.DesiredSize.x;
-			    float childCross;
+				Anchor anchor = child.TryGetComponent<Anchor>();
+				bool isExpand = anchor?.expand == true;
 
-			    switch (fillCross)
-			    {
-			        case CrossFill.Parent:
-			            childCross = contentCrossSize;
-			            break;
-			        case CrossFill.Child:
-			            childCross = cachedMaxChildCross;
-			            break;
-			        case CrossFill.None:
-			        default:
-			            childCross = isVertical ? child.DesiredSize.x : child.DesiredSize.y;
-			            break;
-			    }
+				float childMain = isExpand 
+					? Mathf.Round(expandItemSize) 
+					: (isVertical ? child.DesiredSize.y : child.DesiredSize.x);
 
-			    // Расчет смещения по поперечной оси (ДОБАВЛЕНО ОКРУГЛЕНИЕ)
-			    float crossOffset = 0f;
-			    if (fillCross == CrossFill.None && childCross < contentCrossSize)
-			    {
-			        float freeCross = contentCrossSize - childCross;
-			        if (alignCross == StackCrossAlign.Center)
-			        {
-			            // ИМЕННО ЗДЕСЬ БЫЛО 4.5f! Теперь будет ровно 5.0f или 4.0f
-			            crossOffset = Mathf.Round(freeCross * 0.5f); 
-			        }
-			        else if (alignCross == StackCrossAlign.End)
-			        {
-			            crossOffset = Mathf.Round(freeCross);
-			        }
-			    }
+				float childCross;
 
-			    float2 childPos;
-			    float2 childSize;
+				switch (fillCross)
+				{
+					case CrossFill.Parent:
+						childCross = contentCrossSize;
+						break;
+					case CrossFill.Child:
+						childCross = cachedMaxChildCross;
+						break;
+					case CrossFill.None:
+					default:
+						childCross = isVertical ? child.DesiredSize.x : child.DesiredSize.y;
+						break;
+				}
 
-			    if (isVertical)
-			    {
-			        currentMain -= childMain;
-			        childPos = new float2(Mathf.Round(padCrossStart + crossOffset), currentMain);
-			        childSize = new float2(childCross, childMain);
-			        currentMain -= spacing;
-			    }
-			    else
-			    {
-			        childPos = new float2(currentMain, Mathf.Round(padCrossStart + crossOffset));
-			        childSize = new float2(childMain, childCross);
-			        currentMain += childMain + spacing;
-			    }
+				// Смещение по поперечной оси
+				float crossOffset = 0f;
+				if (fillCross == CrossFill.None && childCross < contentCrossSize)
+				{
+					float freeCross = contentCrossSize - childCross;
+					if (alignCross == StackCrossAlign.Center)
+					{
+						crossOffset = Mathf.Round(freeCross * 0.5f); 
+					}
+					else if (alignCross == StackCrossAlign.End)
+					{
+						crossOffset = Mathf.Round(freeCross);
+					}
+				}
 
-			    child.Arrange(new ArrangeRect(childPos, childSize));
+				float2 childPos;
+				float2 childSize;
+
+				if (isVertical)
+				{
+					currentMain -= childMain;
+					childPos = new float2(Mathf.Round(padCrossStart + crossOffset), currentMain);
+					childSize = new float2(childCross, childMain);
+					currentMain -= spacing;
+				}
+				else
+				{
+					childPos = new float2(currentMain, Mathf.Round(padCrossStart + crossOffset));
+					childSize = new float2(childMain, childCross);
+					currentMain += childMain + spacing;
+				}
+
+				child.Arrange(new ArrangeRect(childPos, childSize));
 			}
 		}
 	}

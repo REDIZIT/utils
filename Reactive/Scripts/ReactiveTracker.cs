@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 
 public static class ReactiveTracker
 {
@@ -8,9 +9,25 @@ public static class ReactiveTracker
 	private static readonly HashSet<AutoSub> pendingAutoSubs = new();
 	private static readonly List<AutoSub> executionBuffer = new();
 
+	private static bool isIsolated;
+
 	public static void ReportRead(IReactive reactive)
 	{
+		if (isIsolated) return;
 		CurrentDependencies?.Add(reactive);
+	}
+
+	public static void RunIsolated(Action action)
+	{
+		try
+		{
+			isIsolated = true;
+			action();
+		}
+		finally
+		{
+			isIsolated = false;
+		}
 	}
 
 	public static void Schedule(AutoSub sub)

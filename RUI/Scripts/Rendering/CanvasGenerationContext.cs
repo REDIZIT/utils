@@ -72,48 +72,54 @@ namespace REDIZIT.RUI
         
         public class DrawBatch
         {
-            public Material material;
-            public readonly List<Vector3> verts = new List<Vector3>();
-            public readonly List<int> tris = new List<int>();
-            public readonly List<Vector2> uvs = new List<Vector2>();
-            public readonly List<Vector2> uv1RectSizes = new List<Vector2>();
-            public readonly List<Vector4> uv2Data = new List<Vector4>();
-            public readonly List<Vector4> uv3ClipRects = new List<Vector4>();
-            public readonly List<Color> colors = new List<Color>();
-            public Mesh mesh;
+	        public Material material;
+	        public readonly List<Vector3> verts = new List<Vector3>();
+	        public readonly List<int> tris = new List<int>();
+	        public readonly List<Vector2> uvs = new List<Vector2>();
+	        public readonly List<Vector2> uv1RectSizes = new List<Vector2>();
+	        public readonly List<Vector4> uv2Data = new List<Vector4>();
+	        public readonly List<Vector4> uv3ClipRects = new List<Vector4>();
+	        public readonly List<Vector4> uv4BorderThickness = new List<Vector4>();
+	        public readonly List<Vector4> uv5BorderColors = new List<Vector4>();
+	        public readonly List<Color> colors = new List<Color>();
+	        public Mesh mesh;
 
-            public void Clear()
-            {
-                verts.Clear();
-                tris.Clear();
-                uvs.Clear();
-                uv1RectSizes.Clear();
-                uv2Data.Clear();
-                uv3ClipRects.Clear();
-                colors.Clear();
-            }
+	        public void Clear()
+	        {
+		        verts.Clear();
+		        tris.Clear();
+		        uvs.Clear();
+		        uv1RectSizes.Clear();
+		        uv2Data.Clear();
+		        uv3ClipRects.Clear();
+		        uv4BorderThickness.Clear();
+		        uv5BorderColors.Clear();
+		        colors.Clear();
+	        }
 
-            public void ApplyToMesh()
-            {
-                mesh ??= new Mesh { name = "BatchMesh" };
-                mesh.Clear();
-                mesh.SetVertices(verts);
-                mesh.SetTriangles(tris, 0);
-                mesh.SetUVs(0, uvs);
-                mesh.SetUVs(1, uv1RectSizes);
-                mesh.SetUVs(2, uv2Data);
-                mesh.SetUVs(3, uv3ClipRects);
-                mesh.SetColors(colors);
-            }
+	        public void ApplyToMesh()
+	        {
+		        mesh ??= new Mesh { name = "BatchMesh" };
+		        mesh.Clear();
+		        mesh.SetVertices(verts);
+		        mesh.SetTriangles(tris, 0);
+		        mesh.SetUVs(0, uvs);
+		        mesh.SetUVs(1, uv1RectSizes);
+		        mesh.SetUVs(2, uv2Data);
+		        mesh.SetUVs(3, uv3ClipRects);
+		        mesh.SetUVs(4, uv4BorderThickness);
+		        mesh.SetUVs(5, uv5BorderColors);
+		        mesh.SetColors(colors);
+	        }
 
-            public void Dispose()
-            {
-                if (mesh != null)
-                {
-                    UnityEngine.Object.DestroyImmediate(mesh);
-                    mesh = null;
-                }
-            }
+	        public void Dispose()
+	        {
+		        if (mesh != null)
+		        {
+			        UnityEngine.Object.DestroyImmediate(mesh);
+			        mesh = null;
+		        }
+	        }
         }
         
         public readonly List<DrawBatch> finalizedBatches = new();
@@ -146,61 +152,77 @@ namespace REDIZIT.RUI
         {
             if (clipStack.Count > 0) clipStack.Pop();
         }
-
-        // Отрисовка квада
-        public void AppendQuad(float2 pos, float2 size, Matrix4x4 matrix, Color color, float4 cornerRadii, float4 uvRect = default)
+        
+        public void AppendQuad(
+	        float2 size, 
+	        Matrix4x4 matrix, 
+	        Color color, 
+	        float4 cornerRadii, 
+	        float4 uvRect = default,
+	        float4 borderThickness = default,
+	        Color borderColor = default)
         {
-            // if (currentBatch == null) return;
-
-            int baseIndex = currentBatch.verts.Count;
-
-            Vector3 p0 = matrix.MultiplyPoint3x4(new Vector3(pos.x, pos.y, 0));
-            Vector3 p1 = matrix.MultiplyPoint3x4(new Vector3(pos.x + size.x, pos.y, 0));
-            Vector3 p2 = matrix.MultiplyPoint3x4(new Vector3(pos.x, pos.y + size.y, 0));
-            Vector3 p3 = matrix.MultiplyPoint3x4(new Vector3(pos.x + size.x, pos.y + size.y, 0));
-
-            currentBatch.verts.Add(p0);
-            currentBatch.verts.Add(p1);
-            currentBatch.verts.Add(p2);
-            currentBatch.verts.Add(p3);
-
-            if (math.dot(uvRect, uvRect) <= 0.0001f)
-            {
-                currentBatch.uvs.Add(new Vector2(0, 0));
-                currentBatch.uvs.Add(new Vector2(1, 0));
-                currentBatch.uvs.Add(new Vector2(0, 1));
-                currentBatch.uvs.Add(new Vector2(1, 1));
-            }
-            else
-            {
-                currentBatch.uvs.Add(new Vector2(uvRect.x, uvRect.y));
-                currentBatch.uvs.Add(new Vector2(uvRect.z, uvRect.y));
-                currentBatch.uvs.Add(new Vector2(uvRect.x, uvRect.w));
-                currentBatch.uvs.Add(new Vector2(uvRect.z, uvRect.w));
-            }
-
-            Rect currentClip = CurrentClipRect;
-            for (int i = 0; i < 4; i++)
-            {
-                currentBatch.uv1RectSizes.Add(new(size.x, size.y));
-                currentBatch.uv2Data.Add(cornerRadii);
-                currentBatch.uv3ClipRects.Add(new(currentClip.min.x, currentClip.min.y, currentClip.max.x, currentClip.max.y));
-                currentBatch.colors.Add(color);
-            }
-
-            currentBatch.tris.Add(baseIndex + 0);
-            currentBatch.tris.Add(baseIndex + 2);
-            currentBatch.tris.Add(baseIndex + 1);
-
-            currentBatch.tris.Add(baseIndex + 2);
-            currentBatch.tris.Add(baseIndex + 3);
-            currentBatch.tris.Add(baseIndex + 1);
+	        AppendQuad(float2.zero, size, matrix, color, cornerRadii, uvRect, borderThickness, borderColor);
         }
 
-        public void AppendQuad(float2 size, Matrix4x4 matrix, Color color, float4 cornerRadii, float4 uvRect = default)
-        {
-            AppendQuad(float2.zero, size, matrix, color, cornerRadii, uvRect);
-        }
+        public void AppendQuad(
+		    float2 pos, 
+		    float2 size, 
+		    Matrix4x4 matrix, 
+		    Color color, 
+		    float4 cornerRadii, 
+		    float4 uvRect = default,
+		    float4 borderThickness = default,
+		    Color borderColor = default)
+		{
+		    int baseIndex = currentBatch.verts.Count;
+
+		    Vector3 p0 = matrix.MultiplyPoint3x4(new Vector3(pos.x, pos.y, 0));
+		    Vector3 p1 = matrix.MultiplyPoint3x4(new Vector3(pos.x + size.x, pos.y, 0));
+		    Vector3 p2 = matrix.MultiplyPoint3x4(new Vector3(pos.x, pos.y + size.y, 0));
+		    Vector3 p3 = matrix.MultiplyPoint3x4(new Vector3(pos.x + size.x, pos.y + size.y, 0));
+
+		    currentBatch.verts.Add(p0);
+		    currentBatch.verts.Add(p1);
+		    currentBatch.verts.Add(p2);
+		    currentBatch.verts.Add(p3);
+
+		    if (math.dot(uvRect, uvRect) <= 0.0001f)
+		    {
+		        currentBatch.uvs.Add(new Vector2(0, 0));
+		        currentBatch.uvs.Add(new Vector2(1, 0));
+		        currentBatch.uvs.Add(new Vector2(0, 1));
+		        currentBatch.uvs.Add(new Vector2(1, 1));
+		    }
+		    else
+		    {
+		        currentBatch.uvs.Add(new Vector2(uvRect.x, uvRect.y));
+		        currentBatch.uvs.Add(new Vector2(uvRect.z, uvRect.y));
+		        currentBatch.uvs.Add(new Vector2(uvRect.x, uvRect.w));
+		        currentBatch.uvs.Add(new Vector2(uvRect.z, uvRect.w));
+		    }
+
+		    Rect currentClip = CurrentClipRect;
+		    Vector4 bColorVec = new Vector4(borderColor.r, borderColor.g, borderColor.b, borderColor.a);
+
+		    for (int i = 0; i < 4; i++)
+		    {
+		        currentBatch.uv1RectSizes.Add(new(size.x, size.y));
+		        currentBatch.uv2Data.Add(cornerRadii);
+		        currentBatch.uv3ClipRects.Add(new(currentClip.min.x, currentClip.min.y, currentClip.max.x, currentClip.max.y));
+		        currentBatch.uv4BorderThickness.Add(borderThickness);
+		        currentBatch.uv5BorderColors.Add(bColorVec);
+		        currentBatch.colors.Add(color);
+		    }
+
+		    currentBatch.tris.Add(baseIndex + 0);
+		    currentBatch.tris.Add(baseIndex + 2);
+		    currentBatch.tris.Add(baseIndex + 1);
+
+		    currentBatch.tris.Add(baseIndex + 2);
+		    currentBatch.tris.Add(baseIndex + 3);
+		    currentBatch.tris.Add(baseIndex + 1);
+		}
 
         public void Dispose()
         {

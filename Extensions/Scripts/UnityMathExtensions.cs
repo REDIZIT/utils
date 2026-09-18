@@ -85,6 +85,7 @@ public static class UnityMathExtensions
 	public static Vector2 yx(this Vector2 v) => new(v.y, v.x);
 	public static float4 ToFloat(this Color c) => new float4(c.r, c.g, c.b, c.a);
 	public static float3 ToFloat3(this Color c) => new float3(c.r, c.g, c.b);
+	public static int4 ToInt(this Color32 c) => new(c.r, c.g, c.b, c.a);
 	
 	
 

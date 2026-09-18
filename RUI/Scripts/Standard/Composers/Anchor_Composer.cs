@@ -22,6 +22,10 @@ namespace REDIZIT.RUI
 				Anchor anchor = child.TryGetComponent<Anchor>();
 				SizeConstraints childConstraints = constraints;
 
+				// Считаем суммарные отступы анкеров
+				float padX = (anchor != null) ? ((anchor.left ?? 0f) + (anchor.right ?? 0f)) : 0f;
+				float padY = (anchor != null) ? ((anchor.top ?? 0f) + (anchor.bottom ?? 0f)) : 0f;
+
 				if (anchor != null)
 				{
 					// По оси X:
@@ -31,14 +35,14 @@ namespace REDIZIT.RUI
 					}
 					else if (anchor.left.HasValue && anchor.right.HasValue && hasMaxW)
 					{
-						float w = math.max(0f, maxAvailableW - anchor.left.Value - anchor.right.Value);
+						float w = math.max(0f, maxAvailableW - padX);
 						childConstraints.x = AxisConstraints.Equal(w);
 					}
 					else if (anchor.left.HasValue || anchor.right.HasValue)
 					{
-						float padX = (anchor.left ?? 0f) + (anchor.right ?? 0f);
-						// ВАЖНО: LessOrEqual, а не Equal, чтобы меню не растягивалось насильно
-						childConstraints.x = hasMaxW ? AxisConstraints.LessOrEqual(math.max(0f, maxAvailableW - padX)) : AxisConstraints.Unlimited();
+						childConstraints.x = hasMaxW 
+							? AxisConstraints.LessOrEqual(math.max(0f, maxAvailableW - padX)) 
+							: AxisConstraints.Unlimited();
 					}
 
 					// По оси Y:
@@ -48,20 +52,26 @@ namespace REDIZIT.RUI
 					}
 					else if (anchor.top.HasValue && anchor.bottom.HasValue && hasMaxH)
 					{
-						float h = math.max(0f, maxAvailableH - anchor.top.Value - anchor.bottom.Value);
+						float h = math.max(0f, maxAvailableH - padY);
 						childConstraints.y = AxisConstraints.Equal(h);
 					}
 					else if (anchor.top.HasValue || anchor.bottom.HasValue)
 					{
-						float padY = (anchor.top ?? 0f) + (anchor.bottom ?? 0f);
-						// ВАЖНО: LessOrEqual, а не Equal
-						childConstraints.y = hasMaxH ? AxisConstraints.LessOrEqual(math.max(0f, maxAvailableH - padY)) : AxisConstraints.Unlimited();
+						childConstraints.y = hasMaxH 
+							? AxisConstraints.LessOrEqual(math.max(0f, maxAvailableH - padY)) 
+							: AxisConstraints.Unlimited();
 					}
 				}
 
 				DesiredSize childSize = child.Measure(childConstraints);
-				maxChildW = math.max(maxChildW, childSize.x);
-				maxChildH = math.max(maxChildH, childSize.y);
+
+				// ВАЖНО: Прибавляем отступы анкеров к размеру контента!
+				// Если ширина/высота не зафиксирована жестко, общий требуемый размер = контент + отступы анкеров
+				float totalW = (anchor != null && anchor.width.HasValue) ? anchor.width.Value : (childSize.x + padX);
+				float totalH = (anchor != null && anchor.height.HasValue) ? anchor.height.Value : (childSize.y + padY);
+
+				maxChildW = math.max(maxChildW, totalW);
+				maxChildH = math.max(maxChildH, totalH);
 			}
 
 			float desiredW = hasMaxW ? maxAvailableW : maxChildW;

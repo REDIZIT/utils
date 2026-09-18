@@ -1,4 +1,5 @@
 ﻿using Unity.Mathematics;
+using UnityEngine;
 
 namespace REDIZIT.RUI
 {
@@ -34,7 +35,7 @@ namespace REDIZIT.RUI
 
 		public virtual void OnLayoutComplete() { }
 		
-		public virtual void GenerateMesh(CanvasGenerationContext ctx) { }
+		public virtual void GenerateMesh(CanvasGenerationContext ctx, Matrix4x4 parentMatrix) { }
 		public virtual void Update() { }
 
 		public virtual float2 GetPreferredSize() => 0;

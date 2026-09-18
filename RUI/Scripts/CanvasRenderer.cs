@@ -39,11 +39,9 @@ namespace REDIZIT.RUI
 			Instance = this;
 		}
 
-		public void Start()
+		public void Awake()
 		{
 			cam = Camera.main;
-			
-			if (canvasService == null || rootFile == null || assetDatabase == null) return;
 
 			InitResources();
 			LoadRootScreen();
@@ -57,6 +55,8 @@ namespace REDIZIT.RUI
 			// Материал для субпиксельного шейдера
 			var subpixelShader = Shader.Find("REDIZIT/RUI/SubpixelText");
 			Material subpixelMat = subpixelShader != null ? new Material(subpixelShader) : null;
+			
+			assetDatabase.Initialize();
 
 			// Если в UIAssetDatabase нашелся любой шрифт — берем его дефолтным:
 			byte[] defaultFont = assetDatabase.fontBytes.Values.FirstOrDefault();
@@ -111,7 +111,11 @@ namespace REDIZIT.RUI
 			context.Dispose();
 		}
 
-		public void MarkDirty() => isDirty = true;
+		public void MarkDirty()
+		{
+			Debug.Log("Mark dirty canvas");
+			isDirty = true;
+		}
 
 		public void Update()
 		{
@@ -153,7 +157,7 @@ namespace REDIZIT.RUI
 				// 4. Render pass
 				Stopwatch w3 = Stopwatch.StartNew();
 				context.Clear();
-				root.RenderTree(context);
+				root.RenderTree(context, Matrix4x4.identity);
 				context.FinalizeBatches();
 				w3.Stop();
 				w.Stop();
@@ -162,6 +166,12 @@ namespace REDIZIT.RUI
 	        
 				isDirty = false;
 			}
+		}
+
+		public T Resolve<T>() where T : CanvasComponent
+		{
+			if (root.TryGetComponentInChildren(out T comp) == false) throw new($"No component of type '{typeof(T)}' found");
+			return comp;
 		}
 		
 		private float2 GetScreenSize()
@@ -296,9 +306,10 @@ namespace REDIZIT.RUI
 		            if (image.color.a > 0.001f || image.sprite != null) return true;
 		        }
 
-		        if (comp is Label label && !string.IsNullOrEmpty(label.text))
+		        if ((comp is Label label && !string.IsNullOrEmpty(label.text)) ||
+		            (comp is TextBox textBox && !string.IsNullOrEmpty(textBox.text)))
 		        {
-		            return true;
+			        return true;
 		        }
 		    }
 

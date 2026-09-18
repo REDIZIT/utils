@@ -54,6 +54,7 @@ namespace REDIZIT.RUI
     {
 	    public string key;
 	    public bool isTemplate;
+	    public bool isStyle;
     
 	    public List<Node_Property> properties = new();
 	    public List<Node_Component> components = new();
