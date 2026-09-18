@@ -61,8 +61,8 @@ public class RV<T> : IReactive
 
 	public override string ToString()
 	{
-		if (value == null) return null;
-		else return value.ToString();
+		if (Value == null) return null;
+		else return Value.ToString();
 	}
 
 	public void Subscribe(Action callback) => onChanged += callback;

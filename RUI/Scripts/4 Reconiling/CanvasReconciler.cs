@@ -61,6 +61,7 @@ namespace REDIZIT.RUI
         {
 	        logger.LogDebug($"Reconcile '{element}' with {node} and {node.properties.Count} properties");
 	        
+	        element.sourceNode = node;
 	        element.service = service;
 	        element.reconciler = this;
 	        
@@ -71,6 +72,7 @@ namespace REDIZIT.RUI
 	        
             ReconcileChildren(element, node.children);
             ReconcileComponents(element, node.components);
+            ApplyStylesToElement(element);
         }
 
         private void ApplyElementProperty(CanvasElement e, Node_Property prop)
@@ -87,6 +89,10 @@ namespace REDIZIT.RUI
 		        
 		        case "layer":
 			        e.layerOffset = EvaluateValue<int>(expr);
+			        break;
+		        
+		        case "style":
+			        e.style = EvaluateValue<string>(expr);
 			        break;
 	            
 		        default:
@@ -128,10 +134,6 @@ namespace REDIZIT.RUI
                 }
         
                 comp.id = node.id;
-                foreach (Node_Property t in node.properties)
-                {
-	                ApplyComponentProperty(comp, t);
-                }
             }
         }
 
@@ -199,6 +201,48 @@ namespace REDIZIT.RUI
 		            parent.RemoveChild(i);
 	            }
             }
+        }
+        
+        public void ApplyStylesToElement(CanvasElement element)
+        {
+	        string effectiveStyleName = element.GetEffectiveStyle();
+	        CanvasStyle style = null;
+	        if (!string.IsNullOrEmpty(effectiveStyleName))
+	        {
+		        service.module.TryGetStyle(effectiveStyleName, out style);
+	        }
+
+	        Node_Element sourceNode = element.sourceNode;
+
+	        foreach (CanvasComponent comp in element.Components)
+	        {
+		        Type compType = comp.GetType();
+		        string typeName = compType.Name;
+
+		        // 1. Сначала применяем значения из стиля (базовые дефолты)
+		        if (style != null && style.components.TryGetValue(typeName, out Node_Component styleComp))
+		        {
+			        foreach (Node_Property prop in styleComp.properties)
+			        {
+				        ApplyComponentProperty(comp, prop);
+			        }
+		        }
+
+		        // 2. Поверх перезаписываем свойствами, явно указанными на самом элементе
+		        if (sourceNode != null)
+		        {
+			        foreach (Node_Component nodeComp in sourceNode.components)
+			        {
+				        if (service.module.componentTypes.TryGetValue(nodeComp.typeName, out Type t) && t == compType)
+				        {
+					        foreach (Node_Property prop in nodeComp.properties)
+					        {
+						        ApplyComponentProperty(comp, prop);
+					        }
+				        }
+			        }
+		        }
+	        }
         }
 
         private void ApplyComponentProperty(CanvasComponent comp, Node_Property prop)

@@ -48,7 +48,7 @@ namespace REDIZIT.RUI
             
             if (targetGraphic == null && Element != null)
             {
-	            targetGraphic = Element.TryGetComponent<Image>();
+                targetGraphic = Element.TryGetComponent<Image>();
             }
 
             recognizer.onDown = () =>
@@ -76,14 +76,14 @@ namespace REDIZIT.RUI
 
         public void OnPointerDown(PointerDownEvent e, GestureArena arena)
         {
-	        if (e.button == 0)
-	        {
-		        recognizer.OnPointerDown(e, arena);
-	        }
-	        else if (e.button == 1) // ПКМ
-	        {
-		        onRightClick?.Invoke();
-	        }
+            if (e.button == 0)
+            {
+                recognizer.OnPointerDown(e, arena);
+            }
+            else if (e.button == 1) // ПКМ
+            {
+                onRightClick?.Invoke();
+            }
         }
 
         public void OnPointerMove(PointerMoveEvent e, GestureArena arena)
@@ -116,9 +116,10 @@ namespace REDIZIT.RUI
             if (isPressed) targetColor = pressedColor;
             else if (isHovered) targetColor = hoverColor;
 
-            if (targetGraphic.color != targetColor)
+            // Изменяем MultiplyColor вместо перезаписи базового color
+            if (targetGraphic.MultiplyColor != targetColor)
             {
-                targetGraphic.color = targetColor;
+                targetGraphic.MultiplyColor = targetColor;
                 MarkDirty();
             }
         }

@@ -9,10 +9,22 @@ namespace REDIZIT.RUI
 		public Dictionary<string, Type> componentTypes = new();
 		public Dictionary<string, Type> composerTypes = new();
 		public Dictionary<Type, CanvasTemplate> templates = new();
+		public Dictionary<string, CanvasStyle> styles = new();
 
 		public void SetTemplate(Type compType, Node_Element templateNode)
 		{
 			templates[compType] = new(compType, templateNode);
+		}
+		
+		public void SetStyle(string styleName, Node_Element styleNode)
+		{
+			styles[styleName] = new(styleName, styleNode);
+		}
+
+		public bool TryGetStyle(string styleName, out CanvasStyle style)
+		{
+			if (styleName == null) { style = null; return false; }
+			return styles.TryGetValue(styleName, out style);
 		}
 
 		public void RegisterAllComponentsFromAssembly(Assembly assembly)

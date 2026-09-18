@@ -8,8 +8,12 @@ namespace REDIZIT.RUI
     public class Image : CanvasComponent, IMeasurable
     {
         public Color color = Color.white;
+        public Color? multiplyColor;
         public Material material;
         public float4 borderRadius = float4.zero;
+        
+        public Color borderColor = Color.clear;
+        public float4 borderThickness = float4.zero;
 
         private ImageMode internalMode = ImageMode.Simple;
         private float2 internalTileSize = float2.zero;
@@ -26,6 +30,45 @@ namespace REDIZIT.RUI
 	        {
 		        if (color.Equals(value) == false) MarkDirty();
 		        color = value;
+	        }
+        }
+        
+        public Color? MultiplyColor
+        {
+	        get => multiplyColor;
+	        set
+	        {
+		        if (multiplyColor == null && value == null) return;
+
+		        if (multiplyColor != null && value != null)
+		        {
+			        Color a = multiplyColor.Value;
+			        Color b = value.Value;
+			        if (Mathf.Approximately(a.r, b.r) && Mathf.Approximately(a.g, b.g) && Mathf.Approximately(a.b, b.b) && Mathf.Approximately(a.a, b.a)) return;
+		        }
+
+		        multiplyColor = value;
+		        MarkDirty();
+	        }
+        }
+        
+        public Color BorderColor
+        {
+	        get => borderColor;
+	        set
+	        {
+		        if (borderColor.Equals(value) == false) MarkDirty();
+		        borderColor = value;
+	        }
+        }
+
+        public float4 BorderThickness
+        {
+	        get => borderThickness;
+	        set
+	        {
+		        if (math.all(borderThickness == value) == false) MarkDirty();
+		        borderThickness = value;
 	        }
         }
 
@@ -106,7 +149,7 @@ namespace REDIZIT.RUI
             return float2.zero;
         }
 
-        public override void GenerateMesh(CanvasGenerationContext ctx)
+        public override void GenerateMesh(CanvasGenerationContext ctx, Matrix4x4 localToRoot)
         {
 	        if (isEnabled == false) return;
 	        
@@ -115,24 +158,25 @@ namespace REDIZIT.RUI
 
             float2 totalSize = Transform.size;
             if (totalSize.x <= 0 || totalSize.y <= 0) return;
+            
+            Color finalColor = multiplyColor.HasValue ? (color * multiplyColor.Value) : color;
 
             ctx.SetLayer(sprite == null ? CanvasGenerationContext.Layer.Background : CanvasGenerationContext.Layer.Content);
             ctx.SetMaterial(targetMat);
-            Matrix4x4 localToRoot = Element.LocalToRoot;
 
             float minSide = math.cmin(totalSize);
             float4 clampedRadius = math.min(borderRadius, minSide / 2f);
             
             if (mode == ImageMode.Simple)
             {
-                float4 uvRect = float4.zero;
-                if (internalSprite != null)
-                {
-                    Vector4 outer = DataUtility.GetOuterUV(internalSprite);
-                    uvRect = new float4(outer.x, outer.y, outer.z, outer.w);
-                }
+	            float4 uvRect = float4.zero;
+	            if (internalSprite != null)
+	            {
+		            Vector4 outer = DataUtility.GetOuterUV(internalSprite);
+		            uvRect = new float4(outer.x, outer.y, outer.z, outer.w);
+	            }
 
-                ctx.AppendQuad(totalSize, localToRoot, color, clampedRadius, uvRect);
+	            ctx.AppendQuad(totalSize, localToRoot, finalColor, clampedRadius, uvRect, borderThickness, borderColor);
             }
             else if (mode == ImageMode.Tiling)
             {
@@ -183,7 +227,7 @@ namespace REDIZIT.RUI
                         float tileU1 = math.lerp(uMin, uMax, uFrac);
 
                         float4 tileUv = new float4(tileU0, tileV0, tileU1, tileV1);
-                        ctx.AppendQuad(new float2(x, y), new float2(currentW, currentH), localToRoot, color, float4.zero, tileUv);
+                        ctx.AppendQuad(new float2(x, y), new float2(currentW, currentH), localToRoot, finalColor, float4.zero, tileUv);
                     }
                 }
             }

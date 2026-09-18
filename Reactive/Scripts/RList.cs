@@ -3,9 +3,10 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class RList<T> : ICollection<T>, IReactive
+public class RList<T> : ICollection<T>, IReactive, IReactiveCollection<T>
 {
-	public Action<T> onAdded, onRemoved;
+	public Action<T> onAdded { get; set; }
+	public Action<T> onRemoved { get; set; }
 	
 	private Action onChanged;
 	private List<T> ls = new();
@@ -41,6 +42,14 @@ public class RList<T> : ICollection<T>, IReactive
 		AddWithoutNotify(element);
 		OnChanged();
 		onAdded?.Invoke(element);
+	}
+
+	public void Add(IEnumerable<T> elements)
+	{
+		foreach (T element in elements)
+		{
+			Add(element);
+		}
 	}
 	
 	public bool Remove(T item)

@@ -8,5 +8,6 @@
 		public float? bottom;
 		public float? width;
 		public float? height;
+		public bool? expand;
 	}
 }
