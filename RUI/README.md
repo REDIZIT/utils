@@ -203,6 +203,12 @@ actions.Sync(s =>
 
 ## 8. Рендеринг, URP и стабильность
 
+### Нисходящий проброс мировой матрицы (Top-Down Matrix Propagation)
+Для исключения проблемы $O(N^2)$ рекурсивных перемножений матриц снизу вверх к корню (`LocalToRoot`), рендер использует нисходящую передачу:
+* Сигнатура обхода: `RenderTree(CanvasGenerationContext ctx, Matrix4x4 parentMatrix)`.
+* Каждый элемент рассчитывает свою мировую трансформацию за одну операцию умножения: `worldMatrix = parentMatrix * transform.LocalToParent`.
+* Компоненты получают готовую `worldMatrix` в метод `GenerateMesh(ctx, worldMatrix)`, избавляя от повторных вычислений матриц для каждой вершины, спрайта или глифа.
+
 ### Безопасный `UpdateTree`
 В фазе обновления (`root.UpdateTree()`) компоненты могут динамически создавать или удалять узлы. Для исключения ошибки `Collection was modified; enumeration operation may not execute` обход списков компонентов и детей выполняется **обратным циклом `for (int i = count - 1; i >= 0; i--)`**, что гарантирует 0 байт GC Alloc и полную безопасность при удалении.
 
@@ -223,129 +229,265 @@ actions.Sync(s =>
 
 ## 9. Примеры разметки (.ui)
 
-### Окно со списком и оверлеем контекстных меню (`WorkspaceScreen.ui`)
+### Экран рабочего пространства с хедером, окном и меню (`WorkspaceScreen.ui`)
 
 ```text
 MyRoot {
+    WorkspaceScreen:
     Anchor_Composer:
 
-    // Окно иерархии слева
-    MyHierarchy {
-        WorkspaceHierarchyWindow:
-        Anchor: left=16 top=48 bottom=38 width=300
-        Image: color=#2C2C2C borderRadius=4
-
-        ScrollView:
-        {
-            Stack_Composer: axis=Vertical fillCross=Parent spacing=0 padding=(0, 3, 0, 3)
-            LotsContainer:
-        }
-    }
-
-    // Статус-бар снизу
-    StatusBar {
+    Header {
         Anchor_Composer:
         {
-            Anchor: left=0 right=0 bottom=0 height=22
-            Image: color=#222222
+            Anchor: left=0 right=0 top=0 height=24
+            Image: color=#222
 
-            Anchor_Composer:
-            {
-                Anchor: right=12 top=2 bottom=0
-                Label: text="Готово" alignment=Right color=#FFFFFF44 fontSize=10
+            // Непрерывный ряд кнопок без щелей
+            Stack_Composer: axis=Horizontal alignCross=Center spacing=0 padding=(4, 0, 4, 0)
+
+            // Кнопка Load: невидимая зона Button занимает 100% ширины слота
+            Load {
+                style="ButtonDefault"
+                Button#loadButton: normalColor=#00000000 hoverColor=#FFFFFF12 pressedColor=#FFFFFF20
+                Anchor_Composer:
+
+                // Визуальная подложка: отступы по 1px с боков и по 3px сверху/снизу
+                Pill {
+                    Anchor: left=1 right=1 top=3 bottom=3
+                    Image: borderRadius=4
+
+                    // Внутренний паддинг текста внутри подложки
+                    Stack_Composer: axis=Horizontal alignCross=Center padding=(6, 1, 6, 0)
+                    {
+                        Label: text="Load" alignment=Center fontSize=10 color=#CCCCCC
+                    }
+                }
+            }
+
+            // Кнопка Save
+            Save {
+                style="ButtonDefault"
+                Button#saveButton: normalColor=#00000000 hoverColor=#FFFFFF12 pressedColor=#FFFFFF20
+                Anchor_Composer:
+
+                Pill {
+                    Anchor: left=1 right=1 top=3 bottom=3
+                    Image: borderRadius=4
+
+                    Stack_Composer: axis=Horizontal alignCross=Center padding=(6, 1, 6, 0)
+                    {
+                        Label: text="Save" alignment=Center fontSize=10 color=#CCCCCC
+                    }
+                }
             }
         }
     }
 
-    // Оверлей контекстных меню (находится внизу разметки, поверх всех окон)
+    MyHierarchy {
+        WorkspaceHierarchyWindow:
+        Anchor: left=16 top=40 bottom=38 width=300
+        Image: color=#2c2c2c borderRadius=4
+
+        Anchor_Composer:
+
+        Header {
+            Anchor: left=0 right=0 top=0 height=28
+            Anchor_Composer:
+
+            Title {
+                Anchor: left=8 top=0 bottom=0
+                Stack_Composer: axis=Horizontal alignCross=Center
+                {
+                    Label: text="Иерархия" fontSize=10 color=#FFF alignment=Left
+                }
+            }
+
+            Modes {
+                Anchor: right=6 top=4 bottom=4
+                ToggleGroup#modeGroup:
+                Image: color=#262626 borderRadius=5 borderThickness=1 borderColor=#383838
+                Stack_Composer: axis=Horizontal alignCross=Center spacing=0 padding=(1, 1, 1, 1)
+                Mask:
+
+                {
+                    style="ModeToggle"
+                    Toggle: isOn=true
+                    Button:
+                    Image:
+                    Stack_Composer: axis=Horizontal alignCross=Center alignMain=Center padding=(8, 2, 8, 0)
+                    {
+                        Label: text="Workspace" fontSize=10
+                    }
+                }
+
+                {
+                    style="ModeToggle"
+                    Toggle:
+                    Button:
+                    Image:
+                    Stack_Composer: axis=Horizontal alignCross=Center alignMain=Center padding=(8, 2, 8, 0)
+                    {
+                        Label: text="Flat" fontSize=10
+                    }
+                }
+
+                {
+                    style="ModeToggle"
+                    Toggle:
+                    Button:
+                    Image:
+                    Stack_Composer: axis=Horizontal alignCross=Center alignMain=Center padding=(8, 2, 8, 0)
+                    {
+                        Label: text="Server" fontSize=10
+                    }
+                }
+            }
+        }
+
+        Content {
+            Anchor: top=28 bottom=0
+            ScrollView:
+            {
+                // fillCross=Parent заставит каждый Lot растянуться на ширину ScrollView
+                Stack_Composer: axis=Vertical fillCross=Parent spacing=0 padding=(0, 3, 0, 3)
+                LotsContainer:
+            }
+        }
+    }
+
     ContextMenus {
-        layer=100
         Anchor_Composer:
         ContextMenusUI:
     }
-}
-```
 
-### Строка иерархии с кнопками, иконками, текстом и инпутом переименования (`HierarchyLot.ui`)
-
-```text
-template Lot {
-    HierarchyLot:
-    SizedBox_Composer: size=(0, 16)
-    Image#bgImage: color=#00000000 borderRadius=4
-    Button#bodyButton: normalColor=#00000000 hoverColor=#FFFFFF10 pressedColor=#FFFFFF20
-
-    {
-        Fill_Composer: padding=(3, 0, 3, 0)
-
-        // Левая группа (отступы вложенности, стрелочка, иконка, имя)
-        LeftGroup {
-            Stack_Composer: axis=Horizontal alignCross=Center spacing=4
-
+    StatusBar {
+        Anchor_Composer:
+        {
+            StatusBar:
+            Anchor: left=0 right=0 bottom=0 height=22
+            Image: color=#222
+            
+            Anchor_Composer:
             {
-                SizedBox_Composer#depthBox: size=(0, 16)
-                Image#depthIcon: sprite="depth-tiling" color=#5A5A5A mode=Tiling
+                Anchor: right=12 top=2 bottom=0
+                Label: text="Test" alignment=Right color=#FFFFFF44 fontSize=10
             }
-
-            {
-                VisualTransform#arrowTransform:
-                SizedBox_Composer: size=(16, 16)
-                Image#arrow: sprite="arrow"
-                Button#arrowButton: normalColor=#FFFFFF hoverColor=#EEEEEE pressedColor=#CCCCCC
-            }
-
-            {
-                SizedBox_Composer: size=(16, 16)
-                Image#mainIcon:
-            }
-
-            // Обычный текст узла
-            {
-                Label#text: fontSize=10 color=#FFFFFF alignment=Left
-            }
-
-            // Поле переименования (активируется по F2)
-            RenameBox {
-                SizedBox_Composer: size=(130, 16)
-                Image: color=#141414 borderRadius=2
-                InputField#renameInput: placeholder="Имя узла..."
-                Label#renameText: fontSize=10 color=#FFFFFF alignment=Left
-            }
-        }
-
-        // Правая группа (динамические слоты действий: глазик, индикаторы)
-        actions {
-            Stack_Composer: axis=Horizontal alignMain=End spacing=4 padding=(0, 0, 6, 0)
         }
     }
 }
 ```
 
-### Перемещаемое окно с заголовком и динамическим телом (`DraggableWindow.ui`)
+### Перемещаемое окно с заголовком, кнопками и телом (`DraggableWindow.ui`)
 
 ```text
 template DraggableWindow {
     DraggableWindow:
-    Anchor: left=120 bottom=120 width=280 height=180
-    Image: color=#1A1A1AF5 borderRadius=6
+    Anchor#windowAnchor: left=120 bottom=120 width=280 height=180
+    Image: color=#222 borderRadius=6 borderThickness=1 borderColor=#333
+    Mask:
     Anchor_Composer:
 
-    // Хедер окна: перемещение по ЛКМ
     Header {
         Anchor: left=0 right=0 top=0 height=26
-        Image: color=#262626 borderRadius=(6, 6, 0, 0)
         DraggableArea:
+        Image: color=#333 borderRadius=(6, 6, 0, 0)
+        Anchor_Composer:
 
-        Stack_Composer: axis=Horizontal alignCross=Center spacing=6 padding=(10, 0, 10, 0)
+        // Заголовок окна
         {
+            Anchor: left=10 right=52 top=2 bottom=0
             Label#titleLabel: text="Окно" fontSize=11 color=#FFFFFF alignment=Left
+        }
+        
+        // Группа кнопок (высота 20px: 26 - 3 - 3)
+        ButtonsGroup {
+            Anchor: right=6 top=3 bottom=3
+            Stack_Composer: axis=Horizontal alignCross=Center alignMain=End spacing=0
+
+            // Кнопка "Свернуть"
+            HideButton {
+                // Внутренние отступы 2px со всех сторон: 16 + 2 + 2 = размер кнопки 20x20
+                Stack_Composer: axis=Horizontal alignCross=Center alignMain=Center padding=(2, 2, 2, 2)
+                Image#bg: color=#00000000 borderRadius=3
+                Button#hideBtn: normalColor=#00000000 hoverColor=#FFFFFF15 pressedColor=#FFFFFF25
+
+                // Отдельный узел иконки ровно 16x16
+                {
+                    SizedBox_Composer: size=(16, 16)
+                    Image: sprite="window-hide" color=#CCCCCC
+                }
+            }
+
+            // Кнопка "Закрыть"
+            CloseButton {
+                Stack_Composer: axis=Horizontal alignCross=Center alignMain=Center padding=(2, 2, 2, 2)
+                Image#bg: color=#00000000 borderRadius=3
+                Button#closeBtn: normalColor=#00000000 hoverColor=#E81123 pressedColor=#F1707A
+
+                // Отдельный узел иконки ровно 16x16
+                {
+                    SizedBox_Composer: size=(16, 16)
+                    Image: sprite="window-close" color=#CCCCCC
+                }
+            }
         }
     }
 
-    // Тело окна: динамический контент через window.SetContent<T>()
-    Body#body {
+    // Тело окна
+    Body {
         Anchor: left=0 right=0 top=26 bottom=0
         Fill_Composer: padding=(10, 10, 10, 10)
+    }
+}
+```
+
+### Контекстное меню (`ContextMenu.ui`)
+
+```text
+template ContextMenu {
+    layer=10
+    ContextMenuUI:
+    Anchor: width=180
+    Image: color=#222222FF borderRadius=4
+    Stack_Composer: axis=Vertical fillCross=Parent spacing=0 padding=3
+    LotsContainer:
+}
+```
+
+### Пункт контекстного меню (`ContextMenuItem.ui`)
+
+```text
+template ContextMenuItemLot {
+    ContextMenuItemLot:
+    SizedBox_Composer: size=(0, 18)
+    Button#btn: normalColor=#00000000 hoverColor=#007ACC pressedColor=#005A9E
+    Image: borderRadius=3
+
+    {
+        Fill_Composer: padding=(8, 0, 8, 0)
+
+        LeftGroup {
+            Stack_Composer: axis=Horizontal alignCross=Center spacing=6
+            
+            // Текст теперь ДОЧЕРНИЙ ЭЛЕМЕНТ
+            {
+                Label#text: fontSize=10 color=#FFFFFF alignment=Left
+            }
+        }
+
+        RightGroup {
+            Stack_Composer: axis=Horizontal alignMain=End alignCross=Center spacing=6
+
+            // Текст шортката теперь тоже ДОЧЕРНИЙ ЭЛЕМЕНТ
+            {
+                Label#shortcut: fontSize=10 color=#888888 alignment=Right
+            }
+
+            {
+                SizedBox_Composer: size=(16, 16)
+                Image#arrow: sprite="context-menu-arrow" color=#AAAAAA
+            }
+        }
     }
 }
 ```
