@@ -129,4 +129,5 @@ public static class UnityMathExtensions
 	
 	public static Color ToColor(this float3 f) => new(f.x, f.y, f.z, 1);
 	public static Color WithAlpha(this Color c, float alpha) => new(c.r, c.g, c.b, alpha);
+	public static Color WithAlphaFactor(this Color c, float alphaFactor) => new(c.r, c.g, c.b, c.a * alphaFactor);
 }

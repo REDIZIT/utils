@@ -78,7 +78,7 @@ public class RV<T> : IReactive
 
 	private void OnChanged()
 	{
-		scope?.MarkDirty(); 
+		scope?.MarkDirty();
 		onChanged?.Invoke();
 	}
 

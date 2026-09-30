@@ -7,6 +7,12 @@ using UnityEngine.TextCore;
 
 namespace REDIZIT.RUI
 {
+	public enum TextWrapMode
+	{
+		Wrap,
+		Overflow
+	}
+
     public struct TextLineInfo
     {
         public int start;
@@ -45,11 +51,30 @@ namespace REDIZIT.RUI
                 or TextAlignmentOptions.BottomJustified 
                 or TextAlignmentOptions.BottomFlush 
                 or TextAlignmentOptions.BottomGeoAligned;
+        
+        public static bool IsLeft(this TextAnchor anchor) =>
+	        anchor is TextAnchor.UpperLeft or TextAnchor.MiddleLeft or TextAnchor.LowerLeft;
+
+        public static bool IsCenter(this TextAnchor anchor) =>
+	        anchor is TextAnchor.UpperCenter or TextAnchor.MiddleCenter or TextAnchor.LowerCenter;
+
+        public static bool IsRight(this TextAnchor anchor) =>
+	        anchor is TextAnchor.UpperRight or TextAnchor.MiddleRight or TextAnchor.LowerRight;
+
+        public static bool IsTop(this TextAnchor anchor) =>
+	        anchor is TextAnchor.UpperLeft or TextAnchor.UpperCenter or TextAnchor.UpperRight;
+
+        public static bool IsMiddle(this TextAnchor anchor) =>
+	        anchor is TextAnchor.MiddleLeft or TextAnchor.MiddleCenter or TextAnchor.MiddleRight;
+
+        public static bool IsBottom(this TextAnchor anchor) =>
+	        anchor is TextAnchor.LowerLeft or TextAnchor.LowerCenter or TextAnchor.LowerRight;
     }
 
     public static class TextEngine
     {
         public static bool enableDebugLogs = false;
+        private static readonly List<TextLineInfo> s_CachedLines = new(32);
 
         // -------------------------------------------------------------
         // МНОГОСТРОЧНЫЙ СУБПИКСЕЛЬНЫЙ ДВИЖОК (ДЛЯ TEXTBOX)
@@ -346,16 +371,16 @@ namespace REDIZIT.RUI
                 return float2.zero;
 
             float totalWidth = 0f;
-            for (int i = 0; i < text.Length; i++)
+            foreach (char c in text)
             {
-                var glyph = font.GetGlyph(text[i]);
-                if (glyph != null)
-                {
-                    totalWidth += glyph.advance;
-                }
+	            var glyph = font.GetGlyph(c);
+	            if (glyph != null)
+	            {
+		            totalWidth += glyph.advance;
+	            }
             }
 
-            return new float2(totalWidth, font.FontSize);
+            return new(totalWidth, font.FontSize);
         }
 
         public static void LayoutSubpixel(
@@ -384,27 +409,26 @@ namespace REDIZIT.RUI
             float fontDescent = font.FontSize * 0.22f;
             float baselineY = Mathf.Round((boxHeight - font.FontSize) * 0.5f + fontDescent);
 
-            for (int i = 0; i < text.Length; i++)
+            foreach (char c in text)
             {
-                char c = text[i];
-                var glyph = font.GetGlyph(c);
-                if (glyph == null) continue;
+	            var glyph = font.GetGlyph(c);
+	            if (glyph == null) continue;
 
-                if (glyph.width > 0 && glyph.height > 0)
-                {
-                    float x = Mathf.Round(cursorX + glyph.bearingX);
-                    float y = Mathf.Round(baselineY + glyph.bearingY - glyph.height);
+	            if (glyph.width > 0 && glyph.height > 0)
+	            {
+		            float x = Mathf.Round(cursorX + glyph.bearingX);
+		            float y = Mathf.Round(baselineY + glyph.bearingY - glyph.height);
 
-                    outputGlyphs.Add(new FormattedGlyph
-                    {
-                        character = c,
-                        position = new float2(x, y),
-                        size = new float2(glyph.width, glyph.height),
-                        uv = glyph.uv
-                    });
-                }
+		            outputGlyphs.Add(new()
+		            {
+			            character = c,
+			            position = new(x, y),
+			            size = new(glyph.width, glyph.height),
+			            uv = glyph.uv
+		            });
+	            }
 
-                cursorX += glyph.advance;
+	            cursorX += glyph.advance;
             }
         }
 
@@ -417,14 +441,13 @@ namespace REDIZIT.RUI
             float scale = fontSize / font.faceInfo.pointSize;
             float totalWidth = 0f;
 
-            for (int i = 0; i < text.Length; i++)
+            foreach (uint unicode in text)
             {
-                uint unicode = text[i];
-                if (!font.characterLookupTable.TryGetValue(unicode, out TMP_Character ch)) continue;
-                totalWidth += ch.glyph.metrics.horizontalAdvance * scale;
+	            if (!font.characterLookupTable.TryGetValue(unicode, out TMP_Character ch)) continue;
+	            totalWidth += ch.glyph.metrics.horizontalAdvance * scale;
             }
 
-            return new float2(totalWidth, font.faceInfo.lineHeight * scale);
+            return new(totalWidth, font.faceInfo.lineHeight * scale);
         }
 
         public static void LayoutSingleLine(
@@ -482,10 +505,292 @@ namespace REDIZIT.RUI
                     position = new float2(glyphX, glyphY),
                     size = new float2(charW, charH),
                     uv = new float4(u0, v0, u1, v1),
-                    scaleRatio = scaleRatio
+                    // scaleRatio = scaleRatio
                 });
 
                 cursorX += metrics.horizontalAdvance * scale;
+            }
+        }
+        
+        /// <summary>
+        /// Разбивает текст на строки с учётом \n, \r и ширины контейнера
+        /// </summary>
+        public static void BreakLines(string text, FreeTypeFont font, float maxWidth, bool wrap, List<TextLineInfo> outputLines)
+        {
+            outputLines.Clear();
+            if (string.IsNullOrEmpty(text) || font == null) return;
+
+            int textLen = text.Length;
+            int paraStart = 0;
+
+            while (paraStart < textLen)
+            {
+                int paraEnd = paraStart;
+                while (paraEnd < textLen && text[paraEnd] != '\n' && text[paraEnd] != '\r')
+                {
+                    paraEnd++;
+                }
+
+                if (!wrap || maxWidth <= 0f)
+                {
+                    float w = 0f;
+                    for (int i = paraStart; i < paraEnd; i++)
+                    {
+                        var g = font.GetGlyph(text[i]);
+                        if (g != null) w += g.advance;
+                    }
+
+                    outputLines.Add(new TextLineInfo
+                    {
+                        start = paraStart,
+                        length = paraEnd - paraStart,
+                        lineWidth = w
+                    });
+                }
+                else
+                {
+                    int lineStart = paraStart;
+                    float currentLineWidth = 0f;
+                    int lastSpaceIndex = -1;
+                    float widthAtLastSpace = 0f;
+
+                    int i = paraStart;
+                    while (i < paraEnd)
+                    {
+                        char c = text[i];
+                        if (c == ' ' || c == '\t')
+                        {
+                            var g = font.GetGlyph(c == '\t' ? ' ' : c);
+                            float adv = g != null ? g.advance : (font.FontSize * 0.25f);
+                            if (c == '\t') adv *= 4f;
+
+                            if (currentLineWidth > 0f)
+                            {
+                                lastSpaceIndex = i;
+                                widthAtLastSpace = currentLineWidth;
+                                currentLineWidth += adv;
+                            }
+                            else
+                            {
+                                lineStart = i + 1;
+                            }
+                            i++;
+                        }
+                        else
+                        {
+                            int wordStart = i;
+                            float wordAdv = 0f;
+                            while (i < paraEnd && text[i] != ' ' && text[i] != '\t')
+                            {
+                                var g = font.GetGlyph(text[i]);
+                                wordAdv += g != null ? g.advance : 0f;
+                                i++;
+                            }
+
+                            if (currentLineWidth + wordAdv > maxWidth)
+                            {
+                                if (lastSpaceIndex > lineStart)
+                                {
+                                    outputLines.Add(new TextLineInfo
+                                    {
+                                        start = lineStart,
+                                        length = lastSpaceIndex - lineStart,
+                                        lineWidth = widthAtLastSpace
+                                    });
+
+                                    lineStart = wordStart;
+                                    currentLineWidth = wordAdv;
+                                    lastSpaceIndex = -1;
+                                    widthAtLastSpace = 0f;
+                                }
+                                else if (currentLineWidth > 0f)
+                                {
+                                    outputLines.Add(new TextLineInfo
+                                    {
+                                        start = lineStart,
+                                        length = wordStart - lineStart,
+                                        lineWidth = currentLineWidth
+                                    });
+
+                                    lineStart = wordStart;
+                                    currentLineWidth = wordAdv;
+                                    lastSpaceIndex = -1;
+                                    widthAtLastSpace = 0f;
+                                }
+                                else
+                                {
+                                    // Слово шире всей строки — перенос по буквам
+                                    int charStart = wordStart;
+                                    float charW = 0f;
+                                    for (int ci = wordStart; ci < i; ci++)
+                                    {
+                                        var g = font.GetGlyph(text[ci]);
+                                        float ca = g != null ? g.advance : 0f;
+                                        if (charW + ca > maxWidth && charW > 0f)
+                                        {
+                                            outputLines.Add(new TextLineInfo
+                                            {
+                                                start = charStart,
+                                                length = ci - charStart,
+                                                lineWidth = charW
+                                            });
+                                            charStart = ci;
+                                            charW = 0f;
+                                        }
+                                        charW += ca;
+                                    }
+                                    lineStart = charStart;
+                                    currentLineWidth = charW;
+                                    lastSpaceIndex = -1;
+                                    widthAtLastSpace = 0f;
+                                }
+                            }
+                            else
+                            {
+                                currentLineWidth += wordAdv;
+                            }
+                        }
+                    }
+
+                    if (paraEnd > lineStart)
+                    {
+                        int end = paraEnd;
+                        while (end > lineStart && (text[end - 1] == ' ' || text[end - 1] == '\t'))
+                            end--;
+
+                        float finalW = (lastSpaceIndex >= end && widthAtLastSpace > 0f) ? widthAtLastSpace : currentLineWidth;
+                        outputLines.Add(new TextLineInfo
+                        {
+                            start = lineStart,
+                            length = end - lineStart,
+                            lineWidth = finalW
+                        });
+                    }
+                    else if (paraEnd == paraStart)
+                    {
+                        outputLines.Add(new TextLineInfo { start = paraStart, length = 0, lineWidth = 0f });
+                    }
+                }
+
+                if (paraEnd < textLen && text[paraEnd] == '\r') paraEnd++;
+                if (paraEnd < textLen && text[paraEnd] == '\n') paraEnd++;
+                paraStart = paraEnd;
+            }
+        }
+
+        /// <summary>
+        /// Измерение полного размера блока текста
+        /// </summary>
+        public static float2 MeasureMultiline(
+            string text,
+            FreeTypeFont font,
+            float maxWidth,
+            bool wrap = true,
+            float lineSpacing = 1.2f)
+        {
+            if (string.IsNullOrEmpty(text) || font == null) return float2.zero;
+
+            BreakLines(text, font, maxWidth, wrap, s_CachedLines);
+            if (s_CachedLines.Count == 0) return float2.zero;
+
+            float maxLineWidth = 0f;
+            for (int i = 0; i < s_CachedLines.Count; i++)
+            {
+                maxLineWidth = Mathf.Max(maxLineWidth, s_CachedLines[i].lineWidth);
+            }
+
+            float lineHeight = Mathf.Round(font.FontSize * lineSpacing);
+            float totalHeight = s_CachedLines.Count > 1 
+                ? ((s_CachedLines.Count - 1) * lineHeight + font.FontSize) 
+                : font.FontSize;
+
+            return new float2(maxLineWidth, totalHeight);
+        }
+
+        /// <summary>
+        /// Раскладка глифов внутри прямоугольника containerRect с выравниванием по обеим осям
+        /// </summary>
+        public static void LayoutMultiline(
+            string text,
+            FreeTypeFont font,
+            Rect containerRect,
+            TextAnchor alignment,
+            bool wrap,
+            float lineSpacing,
+            List<FormattedGlyph> outputGlyphs)
+        {
+            outputGlyphs.Clear();
+            if (string.IsNullOrEmpty(text) || font == null) return;
+
+            float maxWidth = wrap ? containerRect.width : -1f;
+            BreakLines(text, font, maxWidth, wrap, s_CachedLines);
+            if (s_CachedLines.Count == 0) return;
+
+            float lineHeight = Mathf.Round(font.FontSize * lineSpacing);
+            float totalTextHeight = s_CachedLines.Count > 1 
+                ? ((s_CachedLines.Count - 1) * lineHeight + font.FontSize) 
+                : font.FontSize;
+
+            float fontDescent = font.FontSize * 0.22f;
+
+            // 1. Расчет базовой линии первой строки (Y-Up)
+            float topBaselineY;
+            if (alignment.IsTop())
+            {
+                topBaselineY = containerRect.yMax - (font.FontSize - fontDescent);
+            }
+            else if (alignment.IsBottom())
+            {
+                topBaselineY = containerRect.yMin + fontDescent + (s_CachedLines.Count - 1) * lineHeight;
+            }
+            else // Middle
+            {
+                float startY = containerRect.yMin + (containerRect.height - totalTextHeight) * 0.5f;
+                topBaselineY = startY + fontDescent + (s_CachedLines.Count - 1) * lineHeight;
+            }
+
+            topBaselineY = Mathf.Round(topBaselineY);
+
+            // 2. Раскладка по строкам
+            for (int li = 0; li < s_CachedLines.Count; li++)
+            {
+                var line = s_CachedLines[li];
+                float lineBaselineY = topBaselineY - li * lineHeight;
+
+                float cursorX = containerRect.xMin;
+                if (alignment.IsRight())
+                {
+                    cursorX = containerRect.xMax - line.lineWidth;
+                }
+                else if (alignment.IsCenter())
+                {
+                    cursorX = containerRect.xMin + (containerRect.width - line.lineWidth) * 0.5f;
+                }
+
+                cursorX = Mathf.Round(cursorX);
+
+                for (int ci = line.start; ci < line.start + line.length; ci++)
+                {
+                    char c = text[ci];
+                    FreeTypeGlyph glyph = font.GetGlyph(c);
+                    if (glyph == null) continue;
+
+                    if (glyph.width > 0 && glyph.height > 0)
+                    {
+                        float x = cursorX + glyph.bearingX;
+                        float y = lineBaselineY + glyph.bearingY - glyph.height;
+
+                        outputGlyphs.Add(new FormattedGlyph
+                        {
+                            character = c,
+                            position = new float2(x, y),
+                            size = new float2(glyph.width, glyph.height),
+                            uvRect = glyph.uv
+                        });
+                    }
+
+                    cursorX += glyph.advance;
+                }
             }
         }
     }

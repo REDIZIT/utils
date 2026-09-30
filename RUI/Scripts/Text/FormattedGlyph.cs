@@ -1,4 +1,5 @@
 ﻿using Unity.Mathematics;
+using UnityEngine;
 
 namespace REDIZIT.RUI
 {
@@ -8,6 +9,6 @@ namespace REDIZIT.RUI
 		public float2 position;
 		public float2 size;
 		public float4 uv;
-		public float scaleRatio; // Коэффициент масштабирования для SDF-сглаживания
+		public Rect uvRect;
 	}
 }

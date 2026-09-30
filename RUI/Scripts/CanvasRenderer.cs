@@ -113,7 +113,7 @@ namespace REDIZIT.RUI
 
 		public void MarkDirty()
 		{
-			Debug.Log("Mark dirty canvas");
+			// Debug.Log("Mark dirty canvas");
 			isDirty = true;
 		}
 

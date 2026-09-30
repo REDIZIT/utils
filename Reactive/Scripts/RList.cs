@@ -69,6 +69,11 @@ public class RList<T> : ICollection<T>, IReactive, IReactiveCollection<T>
 		ls = defaultValue;
 	}
 	
+	public RList(IEnumerable<T> defaultValues)
+	{
+		ls.AddRange(defaultValues);
+	}
+	
 	public RList(int capacity)
 	{
 		ls = new(capacity);
@@ -87,7 +92,7 @@ public class RList<T> : ICollection<T>, IReactive, IReactiveCollection<T>
 		onAdded?.Invoke(element);
 	}
 
-	public void Add(IEnumerable<T> elements)
+	public void AddRange(IEnumerable<T> elements)
 	{
 		foreach (T element in elements)
 		{
