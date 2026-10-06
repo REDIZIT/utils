@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Linq;
 using System.Net.Sockets;
 using System.Threading;
@@ -13,22 +12,24 @@ namespace RTS
 		public string id;
 		
 		private TcpClient tcp;
-		private Action<string> onDisconnected;
+		private Action<ClientSession> onDisconnected;
 		private CancellationTokenSource cts = new();
 		private SemaphoreSlim dirtySemaphore = new(0);
 
 		public Buckets buckets = new(5 * 1024 * 1024); // 5 MB
 		private Serializer serializer = new(registry);
 		private ILogger logger;
+		private Action<ClientSession, IMessage> onMessageReceived;
 
 		private static TypesRegistry registry = new();
 
-		public ClientSession(string id, TcpClient tcp, Action<string> onDisconnected, ILogger logger)
+		public ClientSession(string id, TcpClient tcp, Action<ClientSession> onDisconnected, ILogger logger, Action<ClientSession, IMessage> onMessageReceived)
 		{
 			this.id = id;
 			this.tcp = tcp;
 			this.onDisconnected = onDisconnected;
 			this.logger = logger;
+			this.onMessageReceived = onMessageReceived;
 		}
 
 		public void Start()
@@ -40,7 +41,7 @@ namespace RTS
 		public Bucket Send(IMessage message)
 		{
 			byte[] bytes = serializer.Serialize(message);
-			if (buckets.TryAllocateFrom(bytes, out Bucket bucket) == false) throw new("Failed to allocate bucket");
+			Bucket bucket = buckets.AllocateFrom(bytes);
 			bucket.state = Bucket.State.QueuedToSend;
 			SetDirty();
 			return bucket;
@@ -53,51 +54,62 @@ namespace RTS
 
 		private async Task RunSending(CancellationToken token)
 		{
-			int maxPartSize = 5 * 1024; // 5 KB
-			while (token.IsCancellationRequested == false)
+			try
 			{
-				await dirtySemaphore.WaitAsync(token);
-				
 				NetworkStream stream = tcp.GetStream();
 				AsyncBinaryWriter w = new(stream, token);
-				
-				while (buckets.pendingBuckets.Any())
+			
+				int maxPartSize = 5 * 1024; // 5 KB
+				while (token.IsCancellationRequested == false)
 				{
-					Bucket bucket = NextBucket();
+					await dirtySemaphore.WaitAsync(token);
+					logger.LogDebug($"Sending loop awaken with {buckets.pendingBuckets.Count()} pending buckets");
+				
+					while (buckets.pendingBuckets.Any())
+					{
+						Bucket bucket = NextBucket();
 
-					if (bucket.state == Bucket.State.QueuedToSend)
-					{
-						bucket.state = Bucket.State.Sending;
-						
-						await w.Write((byte)MessageType.BucketCreate);
-						await w.Write((int)bucket.id);
-						await w.Write((int)bucket.bytes.Length);
-					}
-					else if (bucket.state == Bucket.State.Sending && bucket.BytesToEnd > 0)
-					{
-						BucketPart part = bucket.Next(maxPartSize);
-						
-						await w.Write((byte)MessageType.BucketPart);
-						await w.Write((int)part.bucketID);
-						await w.Write((int)part.bytes.Length);
-						await stream.WriteAsync(part.bytes, token);
-
-						if (bucket.BytesToEnd <= 0) bucket.state = Bucket.State.Sent;
-					}
-					else if (bucket.state == Bucket.State.Received)
-					{
-						logger.LogDebug("Bucket received, free local bucket");
-						bucket.state = Bucket.State.ReceivedReported;
-						
-						await w.Write((byte)MessageType.BucketReceived);
-						await w.Write((int)bucket.id);
-						
-						if (buckets.TryFree(bucket.id) == false)
+						if (bucket.state == Bucket.State.QueuedToSend)
 						{
-							throw new($"Failed to free received bucket {bucket.id}");
+							bucket.state = Bucket.State.Sending;
+						
+							await w.Write((byte)MessageType.BucketCreate);
+							await w.Write((int)bucket.id);
+							await w.Write((int)bucket.bytes.Length);
+						}
+						else if (bucket.state == Bucket.State.Sending && bucket.BytesToEnd > 0)
+						{
+							BucketPart part = bucket.Next(maxPartSize);
+						
+							await w.Write((byte)MessageType.BucketPart);
+							await w.Write((int)part.bucketID);
+							await w.Write((int)part.bytes.Length);
+							await stream.WriteAsync(part.bytes, token);
+
+							if (bucket.BytesToEnd <= 0) bucket.state = Bucket.State.Sent;
+						}
+						else if (bucket.state == Bucket.State.Received)
+						{
+							logger.LogDebug("Bucket received, free local bucket");
+							bucket.state = Bucket.State.ReceivedReported;
+						
+							await w.Write((byte)MessageType.BucketReceived);
+							await w.Write((int)bucket.id);
+						
+							if (buckets.TryFree(bucket.id) == false)
+							{
+								throw new($"Failed to free received bucket {bucket.id}");
+							}
 						}
 					}
+				
+					logger.LogDebug("Sending loop fell asleep");
 				}
+			}
+			catch (Exception e)
+			{
+				logger.LogError($"Sending run failed. {e.GetType().Name}: '{e.Message}': {e.StackTrace}");
+				Disconnect();
 			}
 		}
 		
@@ -119,11 +131,7 @@ namespace RTS
 		            {
 		                int bucketSize = await r.ReadInt();
 
-		                if (buckets.TryAllocate(bucketID, bucketSize, out Bucket bucket) == false)
-		                {
-		                    Disconnect();
-		                    break;
-		                }
+		                Bucket bucket = buckets.Allocate(bucketID, bucketSize);
 		                bucket.state = Bucket.State.Receiving;
 		                
 		                logger.LogDebug($"Bucket {bucketID} with size {bucketSize} created");
@@ -145,7 +153,8 @@ namespace RTS
 			                
 			                logger.LogDebug($"Bucket completed");
 		                    IMessage message = serializer.Deserialize(bucket.bytes);
-		                    logger.LogDebug($"IMessage type: {message.GetType().Name}");
+		                    
+		                    onMessageReceived?.Invoke(this, message);
 		                }
 		            }
 		            else if (type == MessageType.BucketReceived)
@@ -169,7 +178,7 @@ namespace RTS
 		    }
 		    catch (Exception e)
 		    {
-			    logger.LogError($"Message read exception: {e.StackTrace}");
+			    logger.LogError($"Receive run failed. {e.GetType().Name}: '{e.Message}': {e.StackTrace}");
 		    }
 		    finally
 		    {
@@ -183,7 +192,7 @@ namespace RTS
 			
 			cts?.Cancel();
 			tcp?.Dispose();
-			onDisconnected?.Invoke(id);
+			onDisconnected?.Invoke(this);
 		}
 		
 		private Bucket NextBucket()

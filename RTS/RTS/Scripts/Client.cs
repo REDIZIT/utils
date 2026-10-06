@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Net.Sockets;
-using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
@@ -10,22 +9,28 @@ namespace RTS
 	{
 		public Action onConnected;
 		public Action onDisconnected;
+		public Action<IMessage> onMessageReceived;
 		
 		private TcpClient tcp = new();
 		
-		private CancellationTokenSource cts;
 		public ClientSession session;
+
+		private ILogger logger;
+
+		public Client(ILogger logger)
+		{
+			this.logger = logger;
+		}
 		
-		public async Task Connect(string host, int port, ILogger logger)
+		public async Task Connect(string host, int port)
 		{
 			try
 			{
-				cts = new();
 				tcp.SendBufferSize = 0;
 
 				await tcp.ConnectAsync(host, port);
 				
-				session = new(null, tcp, _ => onDisconnected(), logger);
+				session = new(null, tcp, _ => onDisconnected?.Invoke(), logger, OnMessageReceived);
 				session.Start();
 				
 				onConnected?.Invoke();
@@ -37,18 +42,19 @@ namespace RTS
 
 		public void Disconnect()
 		{
-			cts?.Cancel();
-			tcp?.Close();
+			session?.Disconnect();
+			tcp?.Dispose();
 		}
 
 		public Bucket Send(IMessage message)
 		{
 			return session.Send(message);
 		}
-		
-		private void SetDirty()
+
+		private void OnMessageReceived(ClientSession session, IMessage message)
 		{
-			session.SetDirty();
+			logger.LogDebug("Message received");
+			onMessageReceived?.Invoke(message);
 		}
 	}
 }

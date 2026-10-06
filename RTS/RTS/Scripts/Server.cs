@@ -45,16 +45,30 @@ namespace RTS
 				onConnected?.Invoke(tcp);
 
 				string id = Guid.NewGuid().ToString();
-				ClientSession session = new(id, tcp, OnSessionDisconnected, logger);
+				ClientSession session = new(id, tcp, OnSessionDisconnected, logger, OnMessageReceived);
 				sessions.Add(session);
 
 				session.Start();
 			}
 		}
 
-		private void OnSessionDisconnected(string id)
+		private void OnSessionDisconnected(ClientSession session)
 		{
-			sessions.RemoveAll(s => s.id == id);
+			sessions.Remove(session);
+		}
+
+		private void OnMessageReceived(ClientSession session, IMessage m)
+		{
+			if (m is TestMessage testReq)
+			{
+				logger.LogDebug("Sending test response");
+				Bucket bucket = session.Send(new TestResponse()
+				{
+					response = "Tuntuntun",
+					RequestID = testReq.RequestID
+				});
+				logger.LogDebug($"Response bucket id: {bucket.id}");
+			}
 		}
 	}
 }

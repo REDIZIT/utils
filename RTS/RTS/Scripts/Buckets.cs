@@ -16,23 +16,21 @@ namespace RTS
 			this.maxBucketSize = maxBucketSize;
 		}
 		
-		public bool TryAllocate(int bucketID, int bucketSize, out Bucket bucket)
+		public Bucket Allocate(int bucketID, int bucketSize)
 		{
-			bucket = null;
-			if (active.Any(b => b.id == bucketID)) return false;
-			if (bucketSize > maxBucketSize) return false;
+			if (active.Any(b => b.id == bucketID)) throw new($"Bucket with same id ({bucketID}) already exists"); 
+			if (bucketSize > maxBucketSize) throw new($"Bucket size is too large ({bucketSize} / {bucketSize} bytes)");
 
-			bucket = new(bucketID, bucketSize);
+			Bucket bucket = new(bucketID, bucketSize);
 			active.Add(bucket);
-			return true;
+			return bucket;
 		}
 		
-		public bool TryAllocateFrom(byte[] bucketBytes, out Bucket bucket)
+		public Bucket AllocateFrom(byte[] bucketBytes)
 		{
-			int bucketID = NextID();
-			if (TryAllocate(bucketID, bucketBytes.Length, out bucket) == false) return false;
+			Bucket bucket = Allocate(NextID(), bucketBytes.Length);
 			bucket.bytes = bucketBytes;
-			return true;
+			return bucket;
 		}
 
 		public Bucket Write(int bucketID, byte[] bytes)
@@ -47,7 +45,7 @@ namespace RTS
 			Bucket? bucket = active.FirstOrDefault(b => b.id == bucketID);
 			if (bucket == null) return false;
 
-			if (bucket.state != Bucket.State.Sent && bucket.state != Bucket.State.Received) return false;
+			if (bucket.state != Bucket.State.Sent && bucket.state != Bucket.State.ReceivedReported) return false;
 
 			bucket.Dispose();
 			active.Remove(bucket);
@@ -56,7 +54,13 @@ namespace RTS
 
 		private int NextID()
 		{
-			return nextBucketID++;
+			int guard = 0;
+			while (active.Any(b => b.id == nextBucketID))
+			{
+				if (guard++ > 1_000_000) throw new("NextID too many iterations");
+				nextBucketID++;
+			}
+			return nextBucketID;
 		}
 	}
 }
