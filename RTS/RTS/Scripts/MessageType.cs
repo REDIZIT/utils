@@ -5,6 +5,7 @@ namespace RTS
 		Invalid,
 		BucketCreate,
 		BucketPart,
+		BucketReceived,
 		BucketDrop
 	}
 }

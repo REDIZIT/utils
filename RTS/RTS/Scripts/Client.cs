@@ -2,6 +2,7 @@
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace RTS
 {
@@ -13,9 +14,9 @@ namespace RTS
 		private TcpClient tcp = new();
 		
 		private CancellationTokenSource cts;
-		private ClientSession session;
+		public ClientSession session;
 		
-		public async Task Connect(string host, int port)
+		public async Task Connect(string host, int port, ILogger logger)
 		{
 			try
 			{
@@ -24,7 +25,7 @@ namespace RTS
 
 				await tcp.ConnectAsync(host, port);
 				
-				session = new(null, tcp, _ => onDisconnected());
+				session = new(null, tcp, _ => onDisconnected(), logger);
 				session.Start();
 				
 				onConnected?.Invoke();

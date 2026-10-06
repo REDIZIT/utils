@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace RTS
 {
@@ -16,16 +17,18 @@ namespace RTS
 		private CancellationTokenSource cts = new();
 		private SemaphoreSlim dirtySemaphore = new(0);
 
-		private Buckets buckets = new(5 * 1024 * 1024); // 5 MB
+		public Buckets buckets = new(5 * 1024 * 1024); // 5 MB
 		private Serializer serializer = new(registry);
+		private ILogger logger;
 
 		private static TypesRegistry registry = new();
 
-		public ClientSession(string id, TcpClient tcp, Action<string> onDisconnected)
+		public ClientSession(string id, TcpClient tcp, Action<string> onDisconnected, ILogger logger)
 		{
 			this.id = id;
 			this.tcp = tcp;
 			this.onDisconnected = onDisconnected;
+			this.logger = logger;
 		}
 
 		public void Start()
@@ -38,6 +41,7 @@ namespace RTS
 		{
 			byte[] bytes = serializer.Serialize(message);
 			if (buckets.TryAllocateFrom(bytes, out Bucket bucket) == false) throw new("Failed to allocate bucket");
+			bucket.state = Bucket.State.QueuedToSend;
 			SetDirty();
 			return bucket;
 		}
@@ -55,28 +59,43 @@ namespace RTS
 				await dirtySemaphore.WaitAsync(token);
 				
 				NetworkStream stream = tcp.GetStream();
-				BinaryWriter w = new(stream);
+				AsyncBinaryWriter w = new(stream, token);
 				
 				while (buckets.pendingBuckets.Any())
 				{
 					Bucket bucket = NextBucket();
 
-					if (bucket.isRegistered == false)
+					if (bucket.state == Bucket.State.QueuedToSend)
 					{
-						bucket.isRegistered = true;
+						bucket.state = Bucket.State.Sending;
 						
-						w.Write((byte)MessageType.BucketCreate);
-						w.Write((int)bucket.id);
-						w.Write((int)bucket.bytes.Length);
+						await w.Write((byte)MessageType.BucketCreate);
+						await w.Write((int)bucket.id);
+						await w.Write((int)bucket.bytes.Length);
 					}
-					else
+					else if (bucket.state == Bucket.State.Sending && bucket.BytesToEnd > 0)
 					{
 						BucketPart part = bucket.Next(maxPartSize);
 						
-						w.Write((byte)MessageType.BucketPart);
-						w.Write((int)part.bucketID);
-						w.Write((int)part.bytes.Length);
+						await w.Write((byte)MessageType.BucketPart);
+						await w.Write((int)part.bucketID);
+						await w.Write((int)part.bytes.Length);
 						await stream.WriteAsync(part.bytes, token);
+
+						if (bucket.BytesToEnd <= 0) bucket.state = Bucket.State.Sent;
+					}
+					else if (bucket.state == Bucket.State.Received)
+					{
+						logger.LogDebug("Bucket received, free local bucket");
+						bucket.state = Bucket.State.ReceivedReported;
+						
+						await w.Write((byte)MessageType.BucketReceived);
+						await w.Write((int)bucket.id);
+						
+						if (buckets.TryFree(bucket.id) == false)
+						{
+							throw new($"Failed to free received bucket {bucket.id}");
+						}
 					}
 				}
 			}
@@ -84,16 +103,15 @@ namespace RTS
 		
 		private async Task RunReceiving(CancellationToken token)
 		{
-		    NetworkStream stream = tcp.GetStream();
-
 		    try
 		    {
+			    NetworkStream stream = tcp.GetStream();
 			    AsyncBinaryReader r = new(stream, token);
 			    
 		        while (!token.IsCancellationRequested && tcp.Connected)
 		        {
 		            MessageType type = (MessageType)await r.ReadByte();
-		            Console.WriteLine($"Message type: {type}");
+		            logger.LogDebug($"Message type: {type}");
 
 		            int bucketID = await r.ReadInt();
 
@@ -101,12 +119,14 @@ namespace RTS
 		            {
 		                int bucketSize = await r.ReadInt();
 
-		                if (buckets.TryAllocate(bucketID, bucketSize, out _) == false)
+		                if (buckets.TryAllocate(bucketID, bucketSize, out Bucket bucket) == false)
 		                {
 		                    Disconnect();
 		                    break;
 		                }
-		                Console.WriteLine($"Bucket {bucketID} with size {bucketSize} created");
+		                bucket.state = Bucket.State.Receiving;
+		                
+		                logger.LogDebug($"Bucket {bucketID} with size {bucketSize} created");
 		            }
 		            else if (type == MessageType.BucketPart)
 		            {
@@ -116,21 +136,30 @@ namespace RTS
 		                await stream.ReadExactlySafe(bytes, bytes.Length, token);
 
 		                Bucket bucket = buckets.Write(bucketID, bytes);
-		                Console.WriteLine($"Bucket {bucketID} part with size {partLength} written");
+		                logger.LogDebug($"Bucket {bucketID} part with size {partLength} written");
 
-		                if (bucket.IsCompleted)
+		                if (bucket.BytesToEnd <= 0)
 		                {
-		                    Console.WriteLine($"Bucket completed");
+			                bucket.state = Bucket.State.Received;
+			                SetDirty();
+			                
+			                logger.LogDebug($"Bucket completed");
 		                    IMessage message = serializer.Deserialize(bucket.bytes);
-		                    Console.WriteLine($"IMessage type: {message.GetType().Name}");
-		                    
-		                    
+		                    logger.LogDebug($"IMessage type: {message.GetType().Name}");
 		                }
+		            }
+		            else if (type == MessageType.BucketReceived)
+		            {
+			            logger.LogDebug($"BucketReceived received");
+			            
+			            if (buckets.TryFree(bucketID) == false)
+			            {
+				            throw new($"Failed to free remotely received bucket {bucketID}");
+			            }
 		            }
 		            else
 		            {
-		                Disconnect();
-		                break;
+			            throw new($"Unknown MessageType: {type} ({(byte)type})");
 		            }
 		        }
 		    }
@@ -138,9 +167,9 @@ namespace RTS
 		    {
 		        // Штатная отмена токена
 		    }
-		    catch (Exception ex)
+		    catch (Exception e)
 		    {
-		        Console.WriteLine($"Message read exception: {ex.Message} at {ex.StackTrace}");
+			    logger.LogError($"Message read exception: {e.StackTrace}");
 		    }
 		    finally
 		    {

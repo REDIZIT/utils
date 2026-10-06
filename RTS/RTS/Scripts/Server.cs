@@ -4,6 +4,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace RTS
 {
@@ -16,9 +17,12 @@ namespace RTS
 		private CancellationTokenSource cts;
 
 		private List<ClientSession> sessions = new();
+		private ILogger logger;
 
-		public void Start(int port)
+		public void Start(int port, ILogger logger)
 		{
+			this.logger = logger;
+			
 			cts = new();
 			
 			listener = new(IPAddress.Any, port);
@@ -41,7 +45,7 @@ namespace RTS
 				onConnected?.Invoke(tcp);
 
 				string id = Guid.NewGuid().ToString();
-				ClientSession session = new(id, tcp, OnSessionDisconnected);
+				ClientSession session = new(id, tcp, OnSessionDisconnected, logger);
 				sessions.Add(session);
 
 				session.Start();

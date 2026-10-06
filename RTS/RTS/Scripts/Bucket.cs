@@ -2,16 +2,26 @@ using System;
 
 namespace RTS
 {
-	public class Bucket
+	public class Bucket : IDisposable
 	{
 		public int id;
 		public byte[] bytes;
 		public int bytesCaret;
-		public bool isRegistered;
+		public State state;
 
 		public int BytesToEnd => bytes.Length - bytesCaret;
-		public bool IsPending => BytesToEnd > 0;
-		public bool IsCompleted => BytesToEnd <= 0;
+
+		public enum State
+		{
+			Unregistered,
+			QueuedToSend,
+			Sending,
+			Sent,
+			Receiving,
+			Received,
+			ReceivedReported,
+			Released,
+		}
 
 		public Bucket(int id, int length)
 		{
@@ -36,6 +46,11 @@ namespace RTS
 		{
 			Array.Copy(partBytes, 0, bytes, bytesCaret, partBytes.Length);
 			bytesCaret += partBytes.Length;
+		}
+
+		public void Dispose()
+		{
+			
 		}
 	}
 }

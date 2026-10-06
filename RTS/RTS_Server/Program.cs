@@ -12,7 +12,7 @@ internal class Program
 			Console.WriteLine($"TcpClient connected '{c.Client.RemoteEndPoint}'");
 		};
 		
-		server.Start(6000);
+		server.Start(6000, new ConsoleLogger());
 
 		while (true)
 		{
