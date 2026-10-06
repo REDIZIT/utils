@@ -11,11 +11,11 @@ namespace RTS
 		public Action onDisconnected;
 		public Action<IMessage> onMessageReceived;
 		
-		private TcpClient tcp = new();
-		
 		public ClientSession session;
 
+		private TcpClient tcp = new();
 		private ILogger logger;
+		private RequestResponseTable table = new();
 
 		public Client(ILogger logger)
 		{
@@ -51,10 +51,23 @@ namespace RTS
 			return session.Send(message);
 		}
 
+		public async Task<TResponse> Send<TResponse, TRequest>(TRequest request) where TRequest : IMessage, ITrackableMessage where TResponse : ITrackableMessage
+		{
+			Task<ITrackableMessage> responseAwaitTask = table.RegisterRequest(request);
+			Send(request);
+			ITrackableMessage response = await responseAwaitTask;
+			return (TResponse)response;
+		}
+
 		private void OnMessageReceived(ClientSession session, IMessage message)
 		{
 			logger.LogDebug("Message received");
 			onMessageReceived?.Invoke(message);
+
+			if (message is ITrackableMessage trackableMessage)
+			{
+				table.TryFireResponse(trackableMessage);
+			}
 		}
 	}
 }
