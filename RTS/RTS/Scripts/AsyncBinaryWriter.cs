@@ -21,7 +21,7 @@ namespace RTS
 		
 		public async Task WriteBytes(byte[] bytes)
 		{
-			await stream.WriteAsync(bytes, token);
+			await stream.WriteAsync(bytes, token).ConfigureAwait(false);
 		}
 	}
 }

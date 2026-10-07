@@ -30,7 +30,7 @@ namespace RTS
 				// tcp.SendBufferSize = 0;
 				tcp.NoDelay = true;
 
-				await tcp.ConnectAsync(host, port).ConfigureAwait(false);;
+				await tcp.ConnectAsync(host, port).ConfigureAwait(false);
 				
 				session = new(null, tcp, _ => onDisconnected?.Invoke(), logger, OnMessageReceived);
 				session.Start();
@@ -56,21 +56,13 @@ namespace RTS
 		public async Task<TResponse> Send<TResponse, TRequest>(TRequest request) where TRequest : IMessage, ITrackableMessage where TResponse : ITrackableMessage
 		{
 			Task<ITrackableMessage> responseAwaitTask = table.RegisterRequest(request);
-			Stopwatch w1 = Stopwatch.StartNew();
 			Send(request);
-			w1.Stop();
-			logger.LogDebug($"Send.Send in {w1.ElapsedMilliseconds} ms");
-
-			Stopwatch w2 = Stopwatch.StartNew();
 			ITrackableMessage response = await responseAwaitTask.ConfigureAwait(false);
-			logger.LogDebug($"Awaited in {w2.ElapsedMilliseconds} ms");
-			
 			return (TResponse)response;
 		}
 
 		private void OnMessageReceived(ClientSession session, IMessage message)
 		{
-			logger.LogDebug("Message received");
 			onMessageReceived?.Invoke(message);
 
 			if (message is ITrackableMessage trackableMessage)

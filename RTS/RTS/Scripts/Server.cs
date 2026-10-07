@@ -64,13 +64,11 @@ namespace RTS
 		{
 			if (m is TestMessage testReq)
 			{
-				logger.LogDebug("Sending test response");
-				Bucket bucket = session.Send(new TestResponse()
+				session.Send(new TestResponse()
 				{
 					response = "Tuntuntun",
 					RequestID = testReq.RequestID
 				});
-				logger.LogDebug($"Response bucket id: {bucket.id}");
 			}
 		}
 	}

@@ -11,7 +11,7 @@ namespace RTS
 			int totalRead = 0;
 			while (totalRead < count)
 			{
-				int read = await stream.ReadAsync(buffer, totalRead, count - totalRead, token);
+				int read = await stream.ReadAsync(buffer, totalRead, count - totalRead, token).ConfigureAwait(false);;
 				if (read == 0) throw new EndOfStreamException();
 				totalRead += read;
 			}
