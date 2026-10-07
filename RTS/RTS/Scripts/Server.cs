@@ -42,6 +42,8 @@ namespace RTS
 			while (cts.IsCancellationRequested == false)
 			{
 				TcpClient tcp = await listener.AcceptTcpClientAsync();
+				tcp.NoDelay = true;
+				
 				onConnected?.Invoke(tcp);
 
 				string id = Guid.NewGuid().ToString();

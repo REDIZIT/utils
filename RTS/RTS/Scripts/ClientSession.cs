@@ -14,12 +14,16 @@ namespace RTS
 		private TcpClient tcp;
 		private Action<ClientSession> onDisconnected;
 		private CancellationTokenSource cts = new();
-		private SemaphoreSlim dirtySemaphore = new(0);
+		// private SemaphoreSlim dirtySemaphore = new(0);
 
 		public Buckets buckets = new(5 * 1024 * 1024); // 5 MB
 		private Serializer serializer = new(registry);
 		private ILogger logger;
 		private Action<ClientSession, IMessage> onMessageReceived;
+		private DateTime startTimeUTC;
+		
+		private volatile TaskCompletionSource<bool> dirtyTcs = 
+			new(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		private static TypesRegistry registry = new();
 
@@ -30,6 +34,7 @@ namespace RTS
 			this.onDisconnected = onDisconnected;
 			this.logger = logger;
 			this.onMessageReceived = onMessageReceived;
+			startTimeUTC = DateTime.UtcNow;
 		}
 
 		public void Start()
@@ -49,7 +54,9 @@ namespace RTS
 
 		public void SetDirty()
 		{
-			if (dirtySemaphore.CurrentCount == 0) dirtySemaphore.Release();
+			logger.LogDebug($"SetDirty at {(DateTime.UtcNow - startTimeUTC).TotalMilliseconds} ms");
+			// if (dirtySemaphore.CurrentCount == 0) dirtySemaphore.Release();
+			dirtyTcs.TrySetResult(true);
 		}
 
 		private async Task RunSending(CancellationToken token)
@@ -62,8 +69,20 @@ namespace RTS
 				int maxPartSize = 5 * 1024; // 5 KB
 				while (token.IsCancellationRequested == false)
 				{
-					await dirtySemaphore.WaitAsync(token);
-					logger.LogDebug($"Sending loop awaken with {buckets.pendingBuckets.Count()} pending buckets");
+					// await dirtySemaphore.WaitAsync(token);
+					
+					Task<bool> currentTask = dirtyTcs.Task;
+					if (!currentTask.IsCompleted)
+					{
+						// Регистрируем отмену, если токен сработает
+						using (token.Register(() => dirtyTcs.TrySetCanceled(token)))
+						{
+							await currentTask.ConfigureAwait(false);
+						}
+					}
+					dirtyTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+					
+					logger.LogDebug($"Sending loop awaken with {buckets.pendingBuckets.Count()} pending buckets at {(DateTime.UtcNow - startTimeUTC).TotalMilliseconds} ms");
 				
 					while (buckets.pendingBuckets.Any())
 					{
@@ -71,6 +90,8 @@ namespace RTS
 
 						if (bucket.state == Bucket.State.QueuedToSend)
 						{
+							logger.LogDebug($"Start sending bucket {bucket.id} at {(DateTime.UtcNow - startTimeUTC).TotalMilliseconds} ms");
+							
 							bucket.state = Bucket.State.Sending;
 						
 							await w.Write((byte)MessageType.BucketCreate);
@@ -79,18 +100,29 @@ namespace RTS
 						}
 						else if (bucket.state == Bucket.State.Sending && bucket.BytesToEnd > 0)
 						{
+							logger.LogDebug($"Sending part {bucket.id} at {(DateTime.UtcNow - startTimeUTC).TotalMilliseconds} ms");
+							
 							BucketPart part = bucket.Next(maxPartSize);
 						
-							await w.Write((byte)MessageType.BucketPart);
-							await w.Write((int)part.bucketID);
-							await w.Write((int)part.bytes.Length);
-							await stream.WriteAsync(part.bytes, token);
+							// await w.Write((byte)MessageType.BucketPart);
+							// await w.Write((int)part.bucketID);
+							// await w.Write((int)part.bytes.Length);
+							
+							byte[] frame = new byte[9 + part.bytes.Length];
+							frame[0] = (byte)MessageType.BucketPart;
+							BitConverter.GetBytes(part.bucketID).CopyTo(frame, 1);
+							BitConverter.GetBytes(part.bytes.Length).CopyTo(frame, 5);
+							part.bytes.CopyTo(frame, 9);
+							await stream.WriteAsync(frame, token);
+							
+							// await stream.WriteAsync(part.bytes, token);
 
 							if (bucket.BytesToEnd <= 0) bucket.state = Bucket.State.Sent;
 						}
 						else if (bucket.state == Bucket.State.Received)
 						{
-							logger.LogDebug("Bucket received, free local bucket");
+							logger.LogDebug($"Bucket {bucket.id} received, free local bucket at {(DateTime.UtcNow - startTimeUTC).TotalMilliseconds} ms");
+							
 							bucket.state = Bucket.State.ReceivedReported;
 						
 							await w.Write((byte)MessageType.BucketReceived);
@@ -103,7 +135,7 @@ namespace RTS
 						}
 					}
 				
-					logger.LogDebug("Sending loop fell asleep");
+					// logger.LogDebug("Sending loop fell asleep");
 				}
 			}
 			catch (Exception e)
@@ -123,7 +155,7 @@ namespace RTS
 		        while (!token.IsCancellationRequested && tcp.Connected)
 		        {
 		            MessageType type = (MessageType)await r.ReadByte();
-		            logger.LogDebug($"Message type: {type}");
+		            logger.LogDebug($"Message type: {type} at {(DateTime.UtcNow - startTimeUTC).TotalMilliseconds} ms");
 
 		            int bucketID = await r.ReadInt();
 
@@ -134,7 +166,7 @@ namespace RTS
 		                Bucket bucket = buckets.Allocate(bucketID, bucketSize);
 		                bucket.state = Bucket.State.Receiving;
 		                
-		                logger.LogDebug($"Bucket {bucketID} with size {bucketSize} created");
+		                // logger.LogDebug($"Bucket {bucketID} with size {bucketSize} created");
 		            }
 		            else if (type == MessageType.BucketPart)
 		            {
@@ -144,14 +176,14 @@ namespace RTS
 		                await stream.ReadExactlySafe(bytes, bytes.Length, token);
 
 		                Bucket bucket = buckets.Write(bucketID, bytes);
-		                logger.LogDebug($"Bucket {bucketID} part with size {partLength} written");
+		                // logger.LogDebug($"Bucket {bucketID} part with size {partLength} written");
 
 		                if (bucket.BytesToEnd <= 0)
 		                {
 			                bucket.state = Bucket.State.Received;
 			                SetDirty();
 			                
-			                logger.LogDebug($"Bucket completed");
+			                logger.LogDebug($"Bucket completed at {(DateTime.UtcNow - startTimeUTC).TotalMilliseconds} ms");
 		                    IMessage message = serializer.Deserialize(bucket.bytes);
 		                    
 		                    onMessageReceived?.Invoke(this, message);
@@ -159,7 +191,7 @@ namespace RTS
 		            }
 		            else if (type == MessageType.BucketReceived)
 		            {
-			            logger.LogDebug($"BucketReceived received");
+			            logger.LogDebug($"BucketReceived received at {(DateTime.UtcNow - startTimeUTC).TotalMilliseconds} ms");
 			            
 			            if (buckets.TryFree(bucketID) == false)
 			            {
@@ -188,7 +220,7 @@ namespace RTS
 
 		public void Disconnect()
 		{
-			Console.WriteLine("Session disconnected");
+			logger.LogDebug("Session disconnected");
 			
 			cts?.Cancel();
 			tcp?.Dispose();
