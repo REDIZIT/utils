@@ -56,7 +56,7 @@ namespace RTS
 			
 			logger.LogDebug($"Sending bucket {master.id} ({masterBytes.Length} bytes) with {slaves.Count} slaves");
 
-			SetDirty();
+			SetSendDirty();
 			return master;
 		}
 		
@@ -187,14 +187,26 @@ namespace RTS
 		                        bucket.Payload = new MemoryPayload(ms.ToArray());
 		                    }
 
-		                    SetDirty();
+		                    SetSendDirty();
 		                    TickReadyMasters();
 		                }
 		            }
 		            else if (type == MessageType.BucketReceived)
 		            {
 			            logger.LogDebug($"[RECV] Bucket {bucketID} receive reported");
-			            buckets.Free(bucketID);
+
+			            Bucket bucket = buckets.Get(bucketID);
+			            if (bucket.state == Bucket.State.Sent)
+			            {
+				            bucket.isReceiveReported = true;
+				            bucket.processState = Bucket.ProcessState.Handled;
+			            }
+			            else
+			            {
+				            throw new($"Invalid bucket state: {bucket.state}");
+			            }
+			            
+			            TickCleanUp();
 		            }
 		            else
 		            {
@@ -254,14 +266,14 @@ namespace RTS
 			}
 		}
 		
-		private void SetDirty() => dirtyTcs.TrySetResult(true);
+		private void SetSendDirty() => dirtyTcs.TrySetResult(true);
 
 		private void TickReadyMasters()
 		{
 			Bucket[] readyMasters = buckets.active.Values.Where(b => 
 				b.IsMaster && 
 				b.state == Bucket.State.Received &&
-				b.isHandled == false &&
+				b.processState == Bucket.ProcessState.Unhandled &&
 				buckets.active.Values.Count(s => s.masterBucketID == b.id && s.state == Bucket.State.Received) == b.expectedSlavesCount
 			).ToArray();
 			
@@ -277,17 +289,33 @@ namespace RTS
 					.ToArray();
 				
 				byte[] masterBytes = ((MemoryStream)master.Stream).ToArray();
-				(object message, int requestID)  = serializer.Deserialize(masterBytes, slavePayloads);
+				(object message, int requestID) = serializer.Deserialize(masterBytes, slavePayloads);
 
 				Bucket[] slaveBuckets = buckets.active.Values.Where(s => s.masterBucketID == master.id).ToArray();
-				
-				master.isHandled = true;
-				foreach (Bucket slave in slaveBuckets) slave.isHandled = true;
+
+				master.processState = Bucket.ProcessState.Executing;
+				foreach (Bucket slave in slaveBuckets) slave.processState = Bucket.ProcessState.Executing;
 
 				onMessageReceived?.Invoke(new(this, message, requestID));
 
-				buckets.Free(master.id);
-				foreach (Bucket slave in slaveBuckets) buckets.Free(slave.id);
+				master.processState = Bucket.ProcessState.Handled;
+				foreach (Bucket slave in slaveBuckets) slave.processState = Bucket.ProcessState.Handled;
+			}
+			
+			TickCleanUp();
+		}
+
+		private void TickCleanUp()
+		{
+			Bucket[] bucketsToFree = buckets.active.Values
+				.Where(b => b.isReceiveReported && b.processState == Bucket.ProcessState.Handled)
+				.ToArray();
+			
+			logger.LogDebug($"[CLEANUP] Free buckets {bucketsToFree.Length} / {buckets.active.Count}");
+
+			foreach (Bucket bucket in bucketsToFree)
+			{
+				buckets.Free(bucket.id);
 			}
 		}
 	}

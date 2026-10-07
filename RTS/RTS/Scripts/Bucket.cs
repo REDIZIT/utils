@@ -9,7 +9,7 @@ namespace RTS
 		public int masterBucketID;
 		public int expectedSlavesCount;
 		public State state;
-		public bool isHandled;
+		public ProcessState processState;
 		public bool isReceiveReported;
         
 		public long length;
@@ -31,6 +31,13 @@ namespace RTS
 			Sent,
 			Receiving,
 			Received
+		}
+
+		public enum ProcessState
+		{
+			Unhandled,
+			Executing,
+			Handled
 		}
 
 		public Bucket(int id, int masterBucketID, long length)

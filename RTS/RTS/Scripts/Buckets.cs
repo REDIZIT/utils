@@ -7,7 +7,11 @@ namespace RTS
 {
 	public class Buckets
 	{
-		public IEnumerable<Bucket> readyToSend => active.Values.Where(b => b.state == Bucket.State.QueuedToSend || b.state == Bucket.State.Sending || b.state == Bucket.State.Received);
+		public IEnumerable<Bucket> readyToSend => active.Values
+			.Where(b =>
+				b.state == Bucket.State.QueuedToSend ||
+				b.state == Bucket.State.Sending ||
+				(b.state == Bucket.State.Received && b.isReceiveReported == false));
 		
 		public Dictionary<int, Bucket> active = new();
 		
@@ -54,7 +58,7 @@ namespace RTS
 
 				active[bucketID] = bucket;
 				
-				logger.LogDebug($"Bucket #{bucketID} allocated (total: {active.Count})");
+				logger.LogDebug($"[BUCKETS] Allocated #{bucketID} for sending (total: {active.Count})");
 				
 				return bucket;
 			}
@@ -87,7 +91,7 @@ namespace RTS
 
 				active[id] = bucket;
 				
-				logger.LogDebug($"Bucket #{id} allocated (total: {active.Count})");
+				logger.LogDebug($"[BUCKETS] Allocated #{id} for receiving (total: {active.Count})");
 				
 				return bucket;
 			}
@@ -98,11 +102,11 @@ namespace RTS
 			lock (syncLock)
 			{
 				if (!active.TryGetValue(bucketID, out Bucket? bucket)) throw new($"Bucket {bucketID} not found");
-
+				
 				bucket.Dispose();
 				active.Remove(bucketID);
 				
-				logger.LogDebug($"Bucket #{bucketID} freed (total: {active.Count})");
+				logger.LogDebug($"[BUCKETS] Freed #{bucketID} (total: {active.Count})");
 			}
 		}
 	}
