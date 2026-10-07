@@ -18,6 +18,7 @@ namespace RTS
 
 		public async Task Write(byte v) => await WriteBytes(new[] { v });
 		public async Task Write(int v) => await WriteBytes(BitConverter.GetBytes(v));
+		public async Task Write(long v) => await WriteBytes(BitConverter.GetBytes(v));
 		
 		public async Task WriteBytes(byte[] bytes)
 		{

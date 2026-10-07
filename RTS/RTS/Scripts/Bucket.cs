@@ -1,15 +1,26 @@
 using System;
+using System.IO;
 
 namespace RTS
 {
 	public class Bucket : IDisposable
 	{
 		public int id;
-		public byte[] bytes;
-		public int bytesCaret;
+		public int masterBucketID; // Если 0 — это мастер
+		public int expectedSlavesCount; // Сколько слейвов ждет мастер
 		public State state;
+		public bool isHandled;
+		public bool isReceiveReported;
+        
+		public long length;
+		public long bytesTransferred;
 
-		public int BytesToEnd => bytes.Length - bytesCaret;
+		// Поток, из которого мы читаем (отправка) или в который пишем (прием)
+		public Stream Stream { get; set; } 
+		public IPayload Payload { get; set; } // Для готового результата при приеме
+
+		public long BytesToEnd => length - bytesTransferred;
+		public bool IsMaster => masterBucketID == 0;
 
 		public enum State
 		{
@@ -19,38 +30,20 @@ namespace RTS
 			Sent,
 			Receiving,
 			Received,
-			ReceivedReported,
 			Released,
 		}
 
-		public Bucket(int id, int length)
+		public Bucket(int id, int masterBucketID, long length)
 		{
 			this.id = id;
-			bytes = new byte[length];
-		}
-
-		public BucketPart Next(int maxBytes)
-		{
-			int bytesToTake = Math.Min(maxBytes, BytesToEnd);
-			BucketPart part = new()
-			{
-				bucketID = id,
-				bytes = new byte[bytesToTake]
-			};
-			Array.Copy(bytes, bytesCaret, part.bytes, 0, bytesToTake);
-			bytesCaret += bytesToTake;
-			return part;
-		}
-
-		public void Write(byte[] partBytes)
-		{
-			Array.Copy(partBytes, 0, bytes, bytesCaret, partBytes.Length);
-			bytesCaret += partBytes.Length;
+			this.masterBucketID = masterBucketID;
+			this.length = length;
 		}
 
 		public void Dispose()
 		{
-			
+			Stream?.Dispose();
+			Payload?.Dispose();
 		}
 	}
 }

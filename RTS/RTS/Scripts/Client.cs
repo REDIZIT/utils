@@ -57,7 +57,7 @@ namespace RTS
 			return session.Send(message);
 		}
 
-		public async Task<TResponse> Send<TResponse, TRequest>(TRequest request) where TRequest : IMessage, ITrackableMessage where TResponse : ITrackableMessage
+		public async Task<TResponse> Send<TRequest, TResponse>(TRequest request) where TRequest : IMessage, ITrackableMessage where TResponse : ITrackableMessage
 		{
 			Task<ITrackableMessage> responseAwaitTask = table.RegisterRequest(request);
 			Send(request);

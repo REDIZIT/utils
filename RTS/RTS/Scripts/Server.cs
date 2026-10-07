@@ -64,11 +64,25 @@ namespace RTS
 		{
 			if (m is TestMessage testReq)
 			{
+				logger.LogDebug($"[ROUTER] Return TestResponse for requestID {testReq.RequestID}");
 				session.Send(new TestResponse()
 				{
 					response = "Tuntuntun",
 					RequestID = testReq.RequestID
 				});
+			}
+			else if (m is TestHeavyRequest heavyRequest)
+			{
+				logger.LogDebug($"[ROUTER] Return HeavyResponse");
+				session.Send(new TestHeavyResponse()
+				{
+					shortResponse = "Short response",
+					RequestID = heavyRequest.RequestID
+				});
+			}
+			else
+			{
+				logger.LogError($"[ROUTER] Unknown message '{m.GetType().Name}'");
 			}
 		}
 	}

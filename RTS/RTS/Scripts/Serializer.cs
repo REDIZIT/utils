@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 
@@ -6,8 +7,6 @@ namespace RTS
 {
 	public class Serializer
 	{
-		private byte[] buffer = new byte[5 * 1024]; // 5 KB
-
 		private TypesRegistry registry;
 
 		public Serializer(TypesRegistry registry)
@@ -15,39 +14,28 @@ namespace RTS
 			this.registry = registry;
 		}
 		
-		public byte[] Serialize(IMessage message)
+		public (byte[] masterBytes, List<IPayload> slaves) Serialize(IMessage message)
 		{
-			MemoryStream stream = new(buffer);
-			BinaryWriter w = new(stream);
+			using MemoryStream stream = new();
+			using MessageWriter w = new(stream);
 
 			string typeID = registry.GetID(message.GetType());
 			w.Write(typeID);
-			
 			message.Write(w);
-			
-			byte[] bytes = new byte[stream.Position];
-			Array.Copy(buffer, 0, bytes, 0, bytes.Length);
-			
-			w.Dispose();
-			stream.Dispose();
-			
-			return bytes;
+            
+			return (stream.ToArray(), w.Slaves);
 		}
 
-		public IMessage Deserialize(byte[] bytes)
+		public IMessage Deserialize(byte[] masterBytes, IPayload[] slaves)
 		{
-			MemoryStream stream = new(bytes);
-			BinaryReader r = new(stream);
+			using MemoryStream stream = new(masterBytes);
+			using MessageReader r = new(stream, slaves);
 
 			string typeID = r.ReadString();
 			Type type = registry.GetType(typeID);
 			IMessage message = (IMessage)Activator.CreateInstance(type)!;
-			
+            
 			message.Read(r);
-			
-			r.Dispose();
-			stream.Dispose();
-
 			return message;
 		}
 	}

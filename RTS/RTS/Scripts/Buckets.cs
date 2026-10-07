@@ -1,11 +1,12 @@
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 
 namespace RTS
 {
 	public class Buckets
 	{
-		public IEnumerable<Bucket> pendingBuckets => active.Where(b => b.state == Bucket.State.QueuedToSend || b.state == Bucket.State.Sending || b.state == Bucket.State.Received);
+		public IEnumerable<Bucket> readyToSend => active.Where(b => b.state == Bucket.State.QueuedToSend || b.state == Bucket.State.Sending || b.state == Bucket.State.Received);
 		
 		public List<Bucket> active = new();
 		private int maxBucketSize;
@@ -15,41 +16,54 @@ namespace RTS
 		{
 			this.maxBucketSize = maxBucketSize;
 		}
-		
-		public Bucket Allocate(int bucketID, int bucketSize)
-		{
-			if (active.Any(b => b.id == bucketID)) throw new($"Bucket with same id ({bucketID}) already exists"); 
-			if (bucketSize > maxBucketSize) throw new($"Bucket size is too large ({bucketSize} / {bucketSize} bytes)");
 
-			Bucket bucket = new(bucketID, bucketSize);
+		public Bucket Get(int id)
+		{
+			return active.First(b => b.id == id);
+		}
+		
+		public Bucket AllocateSending(int masterBucketID, long length, IPayload payload)
+		{
+			int bucketID = NextID();
+			
+			Bucket bucket = new(bucketID, masterBucketID, length)
+			{
+				state = Bucket.State.QueuedToSend,
+				Payload = payload,
+				Stream = payload.OpenRead() // Открываем поток для чтения отправляемых данных
+			};
+
 			active.Add(bucket);
 			return bucket;
 		}
 		
-		public Bucket AllocateFrom(byte[] bucketBytes)
+		public Bucket AllocateReceiving(int id, int masterID, long size, int expectedSlaves)
 		{
-			Bucket bucket = Allocate(NextID(), bucketBytes.Length);
-			bucket.bytes = bucketBytes;
-			return bucket;
+			Bucket b = new(id, masterID, size);
+			b.expectedSlavesCount = expectedSlaves;
+
+			if (size > 5 * 1024 * 1024) // Больше 5 МБ -> на диск
+			{
+				var tempFile = new TempFilePayload();
+				b.Stream = tempFile.OpenWrite();
+				b.Payload = tempFile;
+			}
+			else // Меньше 5 МБ -> в память
+			{
+				b.Stream = new MemoryStream((int)size);
+			}
+    
+			active.Add(b);
+			return b;
 		}
 
-		public Bucket Write(int bucketID, byte[] bytes)
-		{
-			Bucket bucket = active.First(b => b.id == bucketID);
-			bucket.Write(bytes);
-			return bucket;
-		}
-
-		public bool TryFree(int bucketID)
+		public void Free(int bucketID)
 		{
 			Bucket? bucket = active.FirstOrDefault(b => b.id == bucketID);
-			if (bucket == null) return false;
-
-			if (bucket.state != Bucket.State.Sent && bucket.state != Bucket.State.ReceivedReported) return false;
+			if (bucket == null) throw new($"Bucket {bucketID} not found");
 
 			bucket.Dispose();
 			active.Remove(bucket);
-			return true;
 		}
 
 		private int NextID()

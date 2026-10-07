@@ -18,6 +18,7 @@ namespace RTS
 
 		public async Task<byte> ReadByte() => (await ReadBytes(1))[0];
 		public async Task<int> ReadInt() => BitConverter.ToInt32(await ReadBytes(4), 0);
+		public async Task<long> ReadLong() => BitConverter.ToInt64(await ReadBytes(8), 0);
 		
 		public async Task<byte[]> ReadBytes(int bytesCount)
 		{

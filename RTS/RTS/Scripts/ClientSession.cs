@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Sockets;
@@ -42,147 +43,177 @@ namespace RTS
 		
 		public Bucket Send(IMessage message)
 		{
-			byte[] bytes = serializer.Serialize(message);
-			Bucket bucket = buckets.AllocateFrom(bytes);
-			bucket.state = Bucket.State.QueuedToSend;
+			(byte[] masterBytes, List<IPayload> slaves) = serializer.Serialize(message);
+    
+			Bucket master = buckets.AllocateSending(0, masterBytes.Length, new MemoryPayload(masterBytes));
+			master.expectedSlavesCount = slaves.Count;
+    
+			foreach (IPayload slavePayload in slaves)
+			{
+				buckets.AllocateSending(master.id, slavePayload.Length, slavePayload);
+			}
+			
+			logger.LogDebug($"Sending bucket {master.id} ({masterBytes.Length} bytes) with {slaves.Count} slaves");
+
 			SetDirty();
-			return bucket;
+			return master;
 		}
-
-		public void SetDirty()
-		{
-			dirtyTcs.TrySetResult(true);
-		}
-
+		
 		private async Task RunSending(CancellationToken token)
 		{
-			try
-			{
-				NetworkStream stream = tcp!.GetStream();
-				AsyncBinaryWriter w = new(stream, token);
-		        int maxPartSize = 5 * 1024; // 5 KB
+		    try
+		    {
+		        NetworkStream stream = tcp!.GetStream();
+		        AsyncBinaryWriter w = new(stream, token);
+		        
+		        byte[] sharedBuffer = new byte[10 * 1024];
 
 		        while (!token.IsCancellationRequested)
 		        {
 		            TaskCompletionSource<bool> tcs = dirtyTcs;
-		            if (!tcs.Task.IsCompleted)
-		            {
-		                await tcs.Task.ConfigureAwait(false);
-		            }
+		            if (!tcs.Task.IsCompleted) await tcs.Task.ConfigureAwait(false);
 		            Interlocked.CompareExchange(ref dirtyTcs, new(TaskCreationOptions.RunContinuationsAsynchronously), tcs);
 
-		            while (buckets.pendingBuckets.Any())
+		            while (TryNextBucket(out Bucket bucket))
 		            {
-		                Bucket bucket = NextBucket();
-
 		                if (bucket.state == Bucket.State.QueuedToSend)
 		                {
 		                    bucket.state = Bucket.State.Sending;
+		                    
+		                    logger.LogDebug("[SEND] Start bucket sending");
 
 		                    await w.Write((byte)MessageType.BucketCreate);
 		                    await w.Write((int)bucket.id);
-		                    await w.Write((int)bucket.bytes.Length);
+		                    await w.Write((int)bucket.masterBucketID);
+		                    await w.Write((long)bucket.length);
+		                    if (bucket.IsMaster) await w.Write((int)bucket.expectedSlavesCount);
 		                }
 		                else if (bucket.state == Bucket.State.Sending && bucket.BytesToEnd > 0)
 		                {
-		                    BucketPart part = bucket.Next(maxPartSize);
+		                    int toRead = (int)Math.Min(sharedBuffer.Length, bucket.BytesToEnd);
+		                    int read = await bucket.Stream.ReadAsync(sharedBuffer, 0, toRead, token);
+		                    
+			                logger.LogDebug($"[SEND] Bucket {bucket.id} part {bucket.bytesTransferred}+{read} / {bucket.length} ({(bucket.bytesTransferred + read) / (decimal)bucket.length:P1})");
+		                    bucket.bytesTransferred += read;
 		                    
 		                    await w.Write((byte)MessageType.BucketPart);
-		                    await w.Write((int)part.bucketID);
-		                    await w.Write((int)part.bytes.Length);
-		                    await w.WriteBytes(part.bytes);
+		                    await w.Write((int)bucket.id);
+		                    await w.Write((int)read);
+		                    await stream.WriteAsync(sharedBuffer, 0, read, token);
 
 		                    if (bucket.BytesToEnd <= 0) bucket.state = Bucket.State.Sent;
 		                }
-		                else if (bucket.state == Bucket.State.Received)
+		                else if (bucket.state == Bucket.State.Received && bucket.isReceiveReported == false)
 		                {
-		                    bucket.state = Bucket.State.ReceivedReported;
-		                    
+			                logger.LogDebug("[SEND] Report bucket received");
+
+			                bucket.isReceiveReported = true;
 		                    await w.Write((byte)MessageType.BucketReceived);
 		                    await w.Write((int)bucket.id);
-
-		                    if (!buckets.TryFree(bucket.id))
-		                    {
-		                        throw new($"Failed to free received bucket {bucket.id}");
-		                    }
 		                }
 		            }
 		        }
-			}
-			catch (IOException)
-			{
-				Disconnect();
-			}
-			catch (Exception e)
-			{
-				logger.LogError($"Sending run failed. {e.GetType().Name}: '{e.Message}': {e.StackTrace}");
-				Disconnect();
-			}
+		    }
+		    catch (IOException)
+		    {
+			    Disconnect();
+		    }
+		    catch (Exception e)
+		    {
+			    logger.LogError($"Sending run failed. {e.GetType().Name}: '{e.Message}': {e.StackTrace}");
+			    Disconnect();
+		    }
 		}
 		
 		private async Task RunReceiving(CancellationToken token)
 		{
-			try
-			{
-				NetworkStream stream = tcp!.GetStream();
-				AsyncBinaryReader r = new(stream, token);
+		    try
+		    {
+		        NetworkStream stream = tcp!.GetStream();
+		        AsyncBinaryReader r = new(stream, token);
+		        
+		        byte[] sharedBuffer = new byte[10 * 1024]; // Один буфер на сессию
 
-				while (!token.IsCancellationRequested && tcp.Connected)
-				{
-					MessageType type = (MessageType)await r.ReadByte();
-					int bucketID = await r.ReadInt();
+		        while (!token.IsCancellationRequested && tcp.Connected)
+		        {
+		            MessageType type = (MessageType)await r.ReadByte();
+		            int bucketID = await r.ReadInt();
 
-					if (type == MessageType.BucketCreate)
-					{
-						int bucketSize = await r.ReadInt();
-						Bucket bucket = buckets.Allocate(bucketID, bucketSize);
-						bucket.state = Bucket.State.Receiving;
-					}
-					else if (type == MessageType.BucketPart)
-					{
-						int partSize = await r.ReadInt();
-						byte[] partBytes = await r.ReadBytes(partSize);
-						Bucket bucket = buckets.Write(bucketID, partBytes);
-						if (bucket.BytesToEnd <= 0)
-						{
-							bucket.state = Bucket.State.Received;
-							SetDirty();
+		            if (type == MessageType.BucketCreate)
+		            {
+		                int masterBucketID = await r.ReadInt();
+		                long bucketSize = await r.ReadLong(); // Используем long для тяжелых файлов!
+		                int slavesCount = masterBucketID == 0 ? await r.ReadInt() : 0;
+		                
+		                Bucket bucket = buckets.AllocateReceiving(bucketID, masterBucketID, bucketSize, slavesCount);
+		                bucket.state = Bucket.State.Receiving;
+		                
+		                logger.LogDebug($"[RECV] Create bucket {bucketID}");
+		            }
+		            else if (type == MessageType.BucketPart)
+		            {
+		                int partSize = await r.ReadInt();
+		                
+		                Bucket bucket = buckets.Get(bucketID);
+		                logger.LogDebug($"[RECV] Bucket {bucketID} part {bucket.bytesTransferred}+{partSize} / {bucket.length} ({(bucket.bytesTransferred + partSize) / (decimal)bucket.length:P1})");
+		                
+		                int remaining = partSize;
+		                while (remaining > 0)
+		                {
+		                    int toRead = Math.Min(remaining, sharedBuffer.Length);
+		                    int read = await stream.ReadAsync(sharedBuffer, 0, toRead, token);
+		                    if (read == 0) throw new EndOfStreamException();
+		                    
+		                    await bucket.Stream.WriteAsync(sharedBuffer, 0, read, token);
+		                    remaining -= read;
+		                }
+		                bucket.bytesTransferred += partSize;
 
-							IMessage message = serializer.Deserialize(bucket.bytes);
-							onMessageReceived?.Invoke(this, message);
-						}
-					}
-					else if (type == MessageType.BucketReceived)
-					{
-						if (buckets.TryFree(bucketID) == false)
-						{
-							throw new($"Failed to free remotely received bucket {bucketID}");
-						}
-					}
-					else
-					{
-						throw new($"Unknown MessageType: {type}");
-					}
-				}
-			}
-			catch (OperationCanceledException)
-			{
-				// Штатная отмена токена
-			}
-			catch (IOException)
-			{
-				Disconnect();
-			}
+		                if (bucket.BytesToEnd <= 0)
+		                {
+		                    bucket.state = Bucket.State.Received;
+		                    bucket.Stream.Position = 0;
+		                    
+		                    logger.LogDebug($"[RECV] Bucket {bucketID} collected");
+
+		                    if (bucket.Payload == null && bucket.Stream is MemoryStream ms)
+		                    {
+		                        bucket.Payload = new MemoryPayload(ms.ToArray());
+		                    }
+
+		                    SetDirty();
+		                    TickReadyMasters();
+		                }
+		            }
+		            else if (type == MessageType.BucketReceived)
+		            {
+			            logger.LogDebug($"[RECV] Bucket {bucketID} receive reported");
+			            buckets.Free(bucketID);
+		            }
+		            else
+		            {
+			            throw new($"Unknown MessageType: {type}");
+		            }
+		        }
+		    }
+		    catch (OperationCanceledException)
+		    {
+			    // Штатная отмена токена
+		    }
+		    catch (IOException)
+		    {
+			    Disconnect();
+		    }
 		    catch (Exception e)
 		    {
 			    logger.LogError($"Receive run failed. {e.GetType().Name}: '{e.Message}': {e.StackTrace}");
 		    }
 		    finally
 		    {
-		        Disconnect();
+			    Disconnect();
 		    }
 		}
-
+		
 		public void Disconnect()
 		{
 			if (tcp != null)
@@ -196,10 +227,57 @@ namespace RTS
 				onDisconnected?.Invoke(this);
 			}
 		}
-		
-		private Bucket NextBucket()
+
+		private bool TryNextBucket(out Bucket bucket)
 		{
-			return buckets.pendingBuckets.First();
+			Bucket? b = buckets.readyToSend.FirstOrDefault();
+			if (b == null)
+			{
+				bucket = null;
+				return false;
+			}
+			else
+			{
+				bucket = b;
+				return true;
+			}
+		}
+		
+		private void SetDirty() => dirtyTcs.TrySetResult(true);
+
+		private void TickReadyMasters()
+		{
+			Bucket[] readyMasters = buckets.active.Where(b => 
+				b.IsMaster && 
+				b.state == Bucket.State.Received &&
+				b.isHandled == false &&
+				buckets.active.Count(s => s.masterBucketID == b.id && s.state == Bucket.State.Received) == b.expectedSlavesCount
+			).ToArray();
+			
+			logger.LogDebug($"Tick {readyMasters.Length} ready masters / {buckets.active.Count} active buckets");
+
+			foreach (Bucket master in readyMasters)
+			{
+				// Собираем все Payload от слейвов в правильном порядке
+				IPayload[] slavePayloads = buckets.active
+					.Where(s => s.masterBucketID == master.id)
+					.OrderBy(s => s.id) // Важно для порядка при десериализации
+					.Select(s => s.Payload)
+					.ToArray();
+				
+				byte[] masterBytes = ((MemoryStream)master.Stream).ToArray();
+				IMessage message = serializer.Deserialize(masterBytes, slavePayloads);
+
+				Bucket[] slaveBuckets = buckets.active.Where(s => s.masterBucketID == master.id).ToArray();
+				
+				master.isHandled = true;
+				foreach (Bucket slave in slaveBuckets) slave.isHandled = true;
+
+				onMessageReceived?.Invoke(this, message);
+
+				buckets.Free(master.id);
+				foreach (Bucket slave in slaveBuckets) buckets.Free(slave.id);
+			}
 		}
 	}
 }
