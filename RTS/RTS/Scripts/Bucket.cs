@@ -6,8 +6,8 @@ namespace RTS
 	public class Bucket : IDisposable
 	{
 		public int id;
-		public int masterBucketID; // Если 0 — это мастер
-		public int expectedSlavesCount; // Сколько слейвов ждет мастер
+		public int masterBucketID;
+		public int expectedSlavesCount;
 		public State state;
 		public bool isHandled;
 		public bool isReceiveReported;
@@ -15,9 +15,10 @@ namespace RTS
 		public long length;
 		public long bytesTransferred;
 
-		// Поток, из которого мы читаем (отправка) или в который пишем (прием)
+		public PriorityState priority;
+
 		public Stream Stream { get; set; } 
-		public IPayload Payload { get; set; } // Для готового результата при приеме
+		public IPayload Payload { get; set; } 
 
 		public long BytesToEnd => length - bytesTransferred;
 		public bool IsMaster => masterBucketID == 0;
@@ -29,8 +30,7 @@ namespace RTS
 			Sending,
 			Sent,
 			Receiving,
-			Received,
-			Released,
+			Received
 		}
 
 		public Bucket(int id, int masterBucketID, long length)

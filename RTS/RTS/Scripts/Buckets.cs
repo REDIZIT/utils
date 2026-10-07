@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Microsoft.Extensions.Logging;
 
 namespace RTS
 {
@@ -13,9 +14,12 @@ namespace RTS
 		private readonly BucketIDGenerator idGenerator;
 		private readonly object syncLock = new();
 
-		public Buckets(bool isServer)
+		private readonly ILogger logger;
+
+		public Buckets(bool isServer, ILogger logger)
 		{
 			idGenerator = new(isServer);
+			this.logger = logger;
 		}
 
 		public Bucket Get(int id)
@@ -26,14 +30,22 @@ namespace RTS
 				throw new($"Bucket {id} not found");
 			}
 		}
+
+		public Bucket[] GetReadyToSendBuckets()
+		{
+			lock (syncLock)
+			{
+				return readyToSend.ToArray();
+			}
+		}
 		
-		public Bucket AllocateSending(int masterBucketID, long length, IPayload payload)
+		public Bucket AllocateSending(int masterID, long length, IPayload payload)
 		{
 			lock (syncLock)
 			{
 				int bucketID = idGenerator.Next(id => active.ContainsKey(id));
 
-				Bucket bucket = new(bucketID, masterBucketID, length)
+				Bucket bucket = new(bucketID, masterID, length)
 				{
 					state = Bucket.State.QueuedToSend,
 					Payload = payload,
@@ -41,6 +53,9 @@ namespace RTS
 				};
 
 				active[bucketID] = bucket;
+				
+				logger.LogDebug($"Bucket #{bucketID} allocated (total: {active.Count})");
+				
 				return bucket;
 			}
 		}
@@ -71,6 +86,9 @@ namespace RTS
 				}
 
 				active[id] = bucket;
+				
+				logger.LogDebug($"Bucket #{id} allocated (total: {active.Count})");
+				
 				return bucket;
 			}
 		}
@@ -83,6 +101,8 @@ namespace RTS
 
 				bucket.Dispose();
 				active.Remove(bucketID);
+				
+				logger.LogDebug($"Bucket #{bucketID} freed (total: {active.Count})");
 			}
 		}
 	}

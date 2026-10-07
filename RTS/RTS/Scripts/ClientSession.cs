@@ -33,7 +33,7 @@ namespace RTS
 			this.onDisconnected = onDisconnected;
 			this.logger = logger;
 			this.onMessageReceived = onMessageReceived;
-			buckets = new(isServer);
+			buckets = new(isServer, logger);
 		}
 
 		public void Start()
@@ -77,6 +77,8 @@ namespace RTS
 
 		            while (TryNextBucket(out Bucket bucket))
 		            {
+			            bucket.priority.Touch();
+			            
 		                if (bucket.state == Bucket.State.QueuedToSend)
 		                {
 		                    bucket.state = Bucket.State.Sending;
@@ -148,6 +150,7 @@ namespace RTS
 		                
 		                Bucket bucket = buckets.AllocateReceiving(bucketID, masterBucketID, bucketSize, slavesCount);
 		                bucket.state = Bucket.State.Receiving;
+		                bucket.priority.Touch();
 		                
 		                logger.LogDebug($"[RECV] Create bucket {bucketID}");
 		            }
@@ -156,6 +159,8 @@ namespace RTS
 		                int partSize = await r.ReadInt();
 		                
 		                Bucket bucket = buckets.Get(bucketID);
+		                bucket.priority.Touch();
+		                
 		                logger.LogDebug($"[RECV] Bucket {bucketID} part {bucket.bytesTransferred}+{partSize} / {bucket.length} ({(bucket.bytesTransferred + partSize) / (decimal)bucket.length:P1})");
 		                
 		                int remaining = partSize;
@@ -231,7 +236,12 @@ namespace RTS
 
 		private bool TryNextBucket(out Bucket bucket)
 		{
-			Bucket? b = buckets.readyToSend.FirstOrDefault();
+			Bucket? b = buckets.GetReadyToSendBuckets()
+				.OrderBy(o => o.priority.priority)
+				.ThenBy(o => o.priority.lastTouchedUTC.HasValue)
+				.ThenBy(o => o.priority.lastTouchedUTC)
+				.FirstOrDefault();
+			
 			if (b == null)
 			{
 				bucket = null;
