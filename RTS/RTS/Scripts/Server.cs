@@ -48,7 +48,7 @@ namespace RTS
 				onConnected?.Invoke(tcp);
 
 				string id = Guid.NewGuid().ToString();
-				ClientSession session = new(id, tcp, OnSessionDisconnected, logger, OnMessageReceived);
+				ClientSession session = new(id, tcp, OnSessionDisconnected, logger, OnMessageReceived, true);
 				sessions.Add(session);
 
 				session.Start();

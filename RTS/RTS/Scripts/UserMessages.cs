@@ -8,7 +8,6 @@ namespace RTS
 		void Read(MessageReader r);
 	}
 
-	
 	public class TestMessage : IMessage, ITrackableMessage
 	{
 		public string message;

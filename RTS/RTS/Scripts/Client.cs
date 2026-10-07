@@ -32,7 +32,7 @@ namespace RTS
 
 				await tcp.ConnectAsync(host, port).ConfigureAwait(false);
 				
-				session = new(null, tcp, _ => onDisconnected?.Invoke(), logger, OnMessageReceived);
+				session = new(null, tcp, _ => onDisconnected?.Invoke(), logger, OnMessageReceived, false);
 				session.Start();
 				
 				onConnected?.Invoke();

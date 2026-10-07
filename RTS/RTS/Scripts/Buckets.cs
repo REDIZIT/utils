@@ -6,75 +6,84 @@ namespace RTS
 {
 	public class Buckets
 	{
-		public IEnumerable<Bucket> readyToSend => active.Where(b => b.state == Bucket.State.QueuedToSend || b.state == Bucket.State.Sending || b.state == Bucket.State.Received);
+		public IEnumerable<Bucket> readyToSend => active.Values.Where(b => b.state == Bucket.State.QueuedToSend || b.state == Bucket.State.Sending || b.state == Bucket.State.Received);
 		
-		public List<Bucket> active = new();
-		private int maxBucketSize;
-		private int nextBucketID = 1;
+		public Dictionary<int, Bucket> active = new();
+		
+		private readonly BucketIDGenerator idGenerator;
+		private readonly object syncLock = new();
 
-		public Buckets(int maxBucketSize)
+		public Buckets(bool isServer)
 		{
-			this.maxBucketSize = maxBucketSize;
+			idGenerator = new(isServer);
 		}
 
 		public Bucket Get(int id)
 		{
-			return active.First(b => b.id == id);
+			lock (syncLock)
+			{
+				if (active.TryGetValue(id, out Bucket? bucket))  return bucket;
+				throw new($"Bucket {id} not found");
+			}
 		}
 		
 		public Bucket AllocateSending(int masterBucketID, long length, IPayload payload)
 		{
-			int bucketID = NextID();
-			
-			Bucket bucket = new(bucketID, masterBucketID, length)
+			lock (syncLock)
 			{
-				state = Bucket.State.QueuedToSend,
-				Payload = payload,
-				Stream = payload.OpenRead() // Открываем поток для чтения отправляемых данных
-			};
+				int bucketID = idGenerator.Next(id => active.ContainsKey(id));
 
-			active.Add(bucket);
-			return bucket;
+				Bucket bucket = new(bucketID, masterBucketID, length)
+				{
+					state = Bucket.State.QueuedToSend,
+					Payload = payload,
+					Stream = payload.OpenRead()
+				};
+
+				active[bucketID] = bucket;
+				return bucket;
+			}
 		}
 		
 		public Bucket AllocateReceiving(int id, int masterID, long size, int expectedSlaves)
 		{
-			Bucket b = new(id, masterID, size);
-			b.expectedSlavesCount = expectedSlaves;
+			lock (syncLock)
+			{
+				if (active.ContainsKey(id)) throw new($"Bucket with id {id} already exists in active pool.");
 
-			if (size > 5 * 1024 * 1024) // Больше 5 МБ -> на диск
-			{
-				var tempFile = new TempFilePayload();
-				b.Stream = tempFile.OpenWrite();
-				b.Payload = tempFile;
+				Bucket bucket = new(id, masterID, size)
+				{
+					state = Bucket.State.Receiving,
+					expectedSlavesCount = expectedSlaves
+				};
+
+				// Если бакет больше 5 МБ — сразу пишем на диск во временный файл
+				if (size > 5 * 1024 * 1024)
+				{
+					TempFilePayload temp = new();
+					bucket.Payload = temp;
+					bucket.Stream = temp.OpenWrite();
+				}
+				else
+				{
+					// MemoryStream без ограничений по размеру
+					bucket.Stream = new MemoryStream();
+				}
+
+				active[id] = bucket;
+				return bucket;
 			}
-			else // Меньше 5 МБ -> в память
-			{
-				b.Stream = new MemoryStream((int)size);
-			}
-    
-			active.Add(b);
-			return b;
 		}
 
 		public void Free(int bucketID)
 		{
-			Bucket? bucket = active.FirstOrDefault(b => b.id == bucketID);
-			if (bucket == null) throw new($"Bucket {bucketID} not found");
-
-			bucket.Dispose();
-			active.Remove(bucket);
-		}
-
-		private int NextID()
-		{
-			int guard = 0;
-			while (active.Any(b => b.id == nextBucketID))
+			lock (syncLock)
 			{
-				if (guard++ > 1_000_000) throw new("NextID too many iterations");
-				nextBucketID++;
+				if (!active.TryGetValue(bucketID, out Bucket? bucket)) throw new($"Bucket {bucketID} not found");
+
+				bucket.Dispose();
+				active.Remove(bucketID);
 			}
-			return nextBucketID;
 		}
 	}
 }

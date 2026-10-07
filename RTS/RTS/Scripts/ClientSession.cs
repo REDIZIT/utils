@@ -17,7 +17,7 @@ namespace RTS
 		private Action<ClientSession> onDisconnected;
 		private CancellationTokenSource cts = new();
 
-		private Buckets buckets = new(5 * 1024 * 1024); // 5 MB
+		private Buckets buckets;
 		private Serializer serializer = new(registry);
 		private ILogger logger;
 		private Action<ClientSession, IMessage> onMessageReceived;
@@ -26,13 +26,14 @@ namespace RTS
 		
 		private static TypesRegistry registry = new();
 
-		public ClientSession(string id, TcpClient tcp, Action<ClientSession> onDisconnected, ILogger logger, Action<ClientSession, IMessage> onMessageReceived)
+		public ClientSession(string id, TcpClient tcp, Action<ClientSession> onDisconnected, ILogger logger, Action<ClientSession, IMessage> onMessageReceived, bool isServer)
 		{
 			this.id = id;
 			this.tcp = tcp;
 			this.onDisconnected = onDisconnected;
 			this.logger = logger;
 			this.onMessageReceived = onMessageReceived;
+			buckets = new(isServer);
 		}
 
 		public void Start()
@@ -247,11 +248,11 @@ namespace RTS
 
 		private void TickReadyMasters()
 		{
-			Bucket[] readyMasters = buckets.active.Where(b => 
+			Bucket[] readyMasters = buckets.active.Values.Where(b => 
 				b.IsMaster && 
 				b.state == Bucket.State.Received &&
 				b.isHandled == false &&
-				buckets.active.Count(s => s.masterBucketID == b.id && s.state == Bucket.State.Received) == b.expectedSlavesCount
+				buckets.active.Values.Count(s => s.masterBucketID == b.id && s.state == Bucket.State.Received) == b.expectedSlavesCount
 			).ToArray();
 			
 			logger.LogDebug($"Tick {readyMasters.Length} ready masters / {buckets.active.Count} active buckets");
@@ -259,7 +260,7 @@ namespace RTS
 			foreach (Bucket master in readyMasters)
 			{
 				// Собираем все Payload от слейвов в правильном порядке
-				IPayload[] slavePayloads = buckets.active
+				IPayload[] slavePayloads = buckets.active.Values
 					.Where(s => s.masterBucketID == master.id)
 					.OrderBy(s => s.id) // Важно для порядка при десериализации
 					.Select(s => s.Payload)
@@ -268,7 +269,7 @@ namespace RTS
 				byte[] masterBytes = ((MemoryStream)master.Stream).ToArray();
 				IMessage message = serializer.Deserialize(masterBytes, slavePayloads);
 
-				Bucket[] slaveBuckets = buckets.active.Where(s => s.masterBucketID == master.id).ToArray();
+				Bucket[] slaveBuckets = buckets.active.Values.Where(s => s.masterBucketID == master.id).ToArray();
 				
 				master.isHandled = true;
 				foreach (Bucket slave in slaveBuckets) slave.isHandled = true;
