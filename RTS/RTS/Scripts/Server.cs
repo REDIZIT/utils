@@ -60,31 +60,27 @@ namespace RTS
 			sessions.Remove(session);
 		}
 
-		private void OnMessageReceived(ClientSession session, object m, Dictionary<string, string> meta)
+		private void OnMessageReceived(MessageContext ctx)
 		{
-			int requestID = meta.TryGetValue("REQUEST_ID", out string str) ? int.Parse(str) : 0;
-			Dictionary<string, string> respondMeta = new();
-			respondMeta["REQUEST_ID"] = requestID.ToString();
-			
-			if (m is TestMessage testReq)
+			if (ctx.message is TestMessage testReq)
 			{
 				logger.LogDebug($"[ROUTER] Return TestResponse");
-				session.Send(new TestResponse()
+				ctx.Send(new TestResponse()
 				{
 					response = "Tuntuntun",
-				}, respondMeta);
+				});
 			}
-			else if (m is TestHeavyRequest heavyRequest)
+			else if (ctx.message is TestHeavyRequest heavyRequest)
 			{
 				logger.LogDebug($"[ROUTER] Return HeavyResponse");
-				session.Send(new TestHeavyResponse()
+				ctx.Send(new TestHeavyResponse()
 				{
 					shortResponse = "Short response",
-				}, respondMeta);
+				});
 			}
 			else
 			{
-				logger.LogError($"[ROUTER] Unknown message '{m.GetType().Name}'");
+				logger.LogError($"[ROUTER] Unknown message '{ctx.message.GetType().Name}'");
 			}
 		}
 	}

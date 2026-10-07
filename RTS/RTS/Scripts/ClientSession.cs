@@ -20,13 +20,13 @@ namespace RTS
 		private Buckets buckets;
 		private Serializer serializer = new(registry);
 		private ILogger logger;
-		private Action<ClientSession, object, Dictionary<string, string>> onMessageReceived;
+		private Action<MessageContext> onMessageReceived;
 		
 		private volatile TaskCompletionSource<bool> dirtyTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		
 		private static TypesRegistry registry = new();
 
-		public ClientSession(string id, TcpClient tcp, Action<ClientSession> onDisconnected, ILogger logger, Action<ClientSession, object, Dictionary<string, string>> onMessageReceived, bool isServer)
+		public ClientSession(string id, TcpClient tcp, Action<ClientSession> onDisconnected, ILogger logger, Action<MessageContext> onMessageReceived, bool isServer)
 		{
 			this.id = id;
 			this.tcp = tcp;
@@ -42,9 +42,9 @@ namespace RTS
 			_ = RunReceiving(cts.Token);
 		}
 		
-		public Bucket Send(object message, Dictionary<string, string> meta)
+		public Bucket Send(object message, int requestID)
 		{
-			(byte[] masterBytes, List<IPayload> slaves) = serializer.Serialize(message, meta);
+			(byte[] masterBytes, List<IPayload> slaves) = serializer.Serialize(message, requestID);
     
 			Bucket master = buckets.AllocateSending(0, masterBytes.Length, new MemoryPayload(masterBytes));
 			master.expectedSlavesCount = slaves.Count;
@@ -277,14 +277,14 @@ namespace RTS
 					.ToArray();
 				
 				byte[] masterBytes = ((MemoryStream)master.Stream).ToArray();
-				(object message, Dictionary<string, string> meta)  = serializer.Deserialize(masterBytes, slavePayloads);
+				(object message, int requestID)  = serializer.Deserialize(masterBytes, slavePayloads);
 
 				Bucket[] slaveBuckets = buckets.active.Values.Where(s => s.masterBucketID == master.id).ToArray();
 				
 				master.isHandled = true;
 				foreach (Bucket slave in slaveBuckets) slave.isHandled = true;
 
-				onMessageReceived?.Invoke(this, message, meta);
+				onMessageReceived?.Invoke(new(this, message, requestID));
 
 				buckets.Free(master.id);
 				foreach (Bucket slave in slaveBuckets) buckets.Free(slave.id);

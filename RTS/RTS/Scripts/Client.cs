@@ -52,32 +52,25 @@ namespace RTS
 			}
 		}
 
-		public Bucket Send(object message, Dictionary<string, string> meta)
+		public Bucket Send(object message, int requestID)
 		{
-			return session.Send(message, meta);
+			return session.Send(message, requestID);
 		}
 
 		public async Task<TResponse> Send<TRequest, TResponse>(TRequest request)
 		{
 			table.RegisterRequest(out Task<object> task, out int requestID);
-
-			Dictionary<string, string> meta = new();
-			meta["REQUEST_ID"] = requestID.ToString();
 			
-			Send(request!, meta);
+			Send(request!, requestID);
 			
 			object response = await task.ConfigureAwait(false);
 			return (TResponse)response;
 		}
 
-		private void OnMessageReceived(ClientSession session, object message, Dictionary<string, string> meta)
+		private void OnMessageReceived(MessageContext ctx)
 		{
-			onMessageReceived?.Invoke(message);
-
-			if (meta.TryGetValue("REQUEST_ID", out string requestID))
-			{
-				table.TryFireResponse(message, int.Parse(requestID));
-			}
+			onMessageReceived?.Invoke(ctx.message);
+			table.TryFireResponse(ctx.message, ctx.requestID);
 		}
 	}
 }
