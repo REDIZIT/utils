@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -11,7 +10,7 @@ namespace RTS
 	{
 		public Action onConnected;
 		public Action onDisconnected;
-		public Action<IMessage> onMessageReceived;
+		public Action<object> onMessageReceived;
 		
 		public ClientSession session;
 
@@ -53,25 +52,25 @@ namespace RTS
 			}
 		}
 
-		public Bucket Send(IMessage message, Dictionary<string, string> meta)
+		public Bucket Send(object message, Dictionary<string, string> meta)
 		{
 			return session.Send(message, meta);
 		}
 
-		public async Task<TResponse> Send<TRequest, TResponse>(TRequest request) where TRequest : IMessage where TResponse : IMessage
+		public async Task<TResponse> Send<TRequest, TResponse>(TRequest request)
 		{
-			table.RegisterRequest(out Task<IMessage> task, out int requestID);
+			table.RegisterRequest(out Task<object> task, out int requestID);
 
 			Dictionary<string, string> meta = new();
 			meta["REQUEST_ID"] = requestID.ToString();
 			
-			Send(request, meta);
+			Send(request!, meta);
 			
-			IMessage response = await task.ConfigureAwait(false);
+			object response = await task.ConfigureAwait(false);
 			return (TResponse)response;
 		}
 
-		private void OnMessageReceived(ClientSession session, IMessage message, Dictionary<string, string> meta)
+		private void OnMessageReceived(ClientSession session, object message, Dictionary<string, string> meta)
 		{
 			onMessageReceived?.Invoke(message);
 

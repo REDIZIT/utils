@@ -5,21 +5,21 @@ namespace RTS
 {
 	public class RequestResponseTable
 	{
-		private Dictionary<int, TaskCompletionSource<IMessage>> taskByRequestID = new();
+		private Dictionary<int, TaskCompletionSource<object>> taskByRequestID = new();
 
 		private int lastUsedID;
 		
-		public void RegisterRequest(out Task<IMessage> task, out int requestID)
+		public void RegisterRequest(out Task<object> task, out int requestID)
 		{
-			TaskCompletionSource<IMessage> tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+			TaskCompletionSource<object> tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
 			requestID = ++lastUsedID;
 			taskByRequestID[requestID] = tcs;
 			task = tcs.Task;
 		}
 
-		public bool TryFireResponse(IMessage message, int requestID)
+		public bool TryFireResponse(object message, int requestID)
 		{
-			if (taskByRequestID.TryGetValue(requestID, out TaskCompletionSource<IMessage> tcs))
+			if (taskByRequestID.TryGetValue(requestID, out TaskCompletionSource<object> tcs))
 			{
 				tcs.TrySetResult(message);
 				return true;

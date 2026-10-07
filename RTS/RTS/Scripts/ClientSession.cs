@@ -20,13 +20,13 @@ namespace RTS
 		private Buckets buckets;
 		private Serializer serializer = new(registry);
 		private ILogger logger;
-		private Action<ClientSession, IMessage, Dictionary<string, string>> onMessageReceived;
+		private Action<ClientSession, object, Dictionary<string, string>> onMessageReceived;
 		
 		private volatile TaskCompletionSource<bool> dirtyTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		
 		private static TypesRegistry registry = new();
 
-		public ClientSession(string id, TcpClient tcp, Action<ClientSession> onDisconnected, ILogger logger, Action<ClientSession, IMessage, Dictionary<string, string>> onMessageReceived, bool isServer)
+		public ClientSession(string id, TcpClient tcp, Action<ClientSession> onDisconnected, ILogger logger, Action<ClientSession, object, Dictionary<string, string>> onMessageReceived, bool isServer)
 		{
 			this.id = id;
 			this.tcp = tcp;
@@ -42,7 +42,7 @@ namespace RTS
 			_ = RunReceiving(cts.Token);
 		}
 		
-		public Bucket Send(IMessage message, Dictionary<string, string> meta)
+		public Bucket Send(object message, Dictionary<string, string> meta)
 		{
 			(byte[] masterBytes, List<IPayload> slaves) = serializer.Serialize(message, meta);
     
@@ -277,7 +277,7 @@ namespace RTS
 					.ToArray();
 				
 				byte[] masterBytes = ((MemoryStream)master.Stream).ToArray();
-				(IMessage message, Dictionary<string, string> meta)  = serializer.Deserialize(masterBytes, slavePayloads);
+				(object message, Dictionary<string, string> meta)  = serializer.Deserialize(masterBytes, slavePayloads);
 
 				Bucket[] slaveBuckets = buckets.active.Values.Where(s => s.masterBucketID == master.id).ToArray();
 				

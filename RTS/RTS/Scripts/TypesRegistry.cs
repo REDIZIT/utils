@@ -1,45 +1,47 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 
 namespace RTS
 {
 	public class TypesRegistry
 	{
-		private Dictionary<string, Type> typeByID = new();
-		private Dictionary<Type, string> idByType = new();
+		private readonly ConcurrentDictionary<Type, TypeSchema> schemaByType = new();
+		private readonly ConcurrentDictionary<string, TypeSchema> schemaById = new();
 
-		public TypesRegistry()
+		public TypeSchema GetSchema(Type type)
 		{
-			Collect();
-		}
-		
-		public void Collect()
-		{
-			Clear();
-			foreach (Type type in Assembly.GetExecutingAssembly().GetTypes())
+			return schemaByType.GetOrAdd(type, t =>
 			{
-				if (type.IsAbstract == false && type.IsInterface == false && typeof(IMessage).IsAssignableFrom(type))
+				TypeSchema schema = new(t);
+				schemaById[schema.TypeID] = schema;
+				return schema;
+			});
+		}
+
+		public TypeSchema GetSchema(string typeID)
+		{
+			return schemaById.GetOrAdd(typeID, id =>
+			{
+				// Ищем тип во всех загруженных сборках (только при первом появлении неизвестного ID)
+				Type? resolvedType = null;
+				foreach (Assembly asm in AppDomain.CurrentDomain.GetAssemblies())
 				{
-					Register(type);
+					resolvedType = asm.GetTypes().FirstOrDefault(t => t.Name == id);
+					if (resolvedType != null) break;
 				}
-			}
-		}
 
-		public string GetID(Type type) => idByType[type];
-		public Type GetType(string id) => typeByID[id];
+				if (resolvedType == null)
+				{
+					throw new InvalidOperationException($"Type with name '{id}' was not found in any loaded assembly.");
+				}
 
-		private void Clear()
-		{
-			typeByID.Clear();
-			idByType.Clear();
-		}
-
-		private void Register(Type type)
-		{
-			string id = type.Name;
-			typeByID[id] = type;
-			idByType[type] = id;
+				TypeSchema schema = new(resolvedType);
+				schemaByType[resolvedType] = schema;
+				return schema;
+			});
 		}
 	}
 }

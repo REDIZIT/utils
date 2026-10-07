@@ -6,52 +6,60 @@ namespace RTS
 {
 	public class Serializer
 	{
-		private TypesRegistry registry;
+		private readonly TypesRegistry registry;
 
 		public Serializer(TypesRegistry registry)
 		{
 			this.registry = registry;
 		}
 		
-		public (byte[] masterBytes, List<IPayload> slaves) Serialize(IMessage message, Dictionary<string, string> meta)
+		public (byte[] masterBytes, List<IPayload> slaves) Serialize(object message, Dictionary<string, string> meta)
 		{
 			using MemoryStream stream = new();
 			using MessageWriter w = new(stream);
 
-			w.Write((int)meta.Count);
+			// 1. Метаданные (RequestID и т.д.)
+			w.Write(meta.Count);
 			foreach (var kv in meta)
 			{
 				w.Write(kv.Key);
 				w.Write(kv.Value);
 			}
 
-			string typeID = registry.GetID(message.GetType());
-			w.Write(typeID);
+			// 2. Идентификатор типа и поля объекта
+			TypeSchema schema = registry.GetSchema(message.GetType());
+			w.Write(schema.TypeID);
 			
-			message.Write(w);
+			foreach (FieldAccessor field in schema.Fields)
+			{
+				field.Write(message, w);
+			}
             
 			return (stream.ToArray(), w.Slaves);
 		}
 
-		public (IMessage message, Dictionary<string, string> meta) Deserialize(byte[] masterBytes, IPayload[] slaves)
+		public (object message, Dictionary<string, string> meta) Deserialize(byte[] masterBytes, IPayload[] slaves)
 		{
 			using MemoryStream stream = new(masterBytes);
 			using MessageReader r = new(stream, slaves);
 
+			// 1. Читаем метаданные
 			int metaCount = r.ReadInt32();
 			Dictionary<string, string> meta = new(metaCount);
 			for (int i = 0; i < metaCount; i++)
 			{
-				string key = r.ReadString();
-				string value = r.ReadString();
-				meta[key] = value;
+				meta[r.ReadString()] = r.ReadString();
 			}
 			
+			// 2. Читаем тип и восстанавливаем поля
 			string typeID = r.ReadString();
-			Type type = registry.GetType(typeID);
-			IMessage message = (IMessage)Activator.CreateInstance(type)!;
+			TypeSchema schema = registry.GetSchema(typeID);
+			object message = schema.CreateInstance();
             
-			message.Read(r);
+			foreach (FieldAccessor field in schema.Fields)
+			{
+				field.Read(message, r);
+			}
 			
 			return (message, meta);
 		}

@@ -60,7 +60,7 @@ namespace RTS
 			sessions.Remove(session);
 		}
 
-		private void OnMessageReceived(ClientSession session, IMessage m, Dictionary<string, string> meta)
+		private void OnMessageReceived(ClientSession session, object m, Dictionary<string, string> meta)
 		{
 			int requestID = meta.TryGetValue("REQUEST_ID", out string str) ? int.Parse(str) : 0;
 			Dictionary<string, string> respondMeta = new();
