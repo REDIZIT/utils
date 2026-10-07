@@ -44,8 +44,12 @@ namespace RTS
 
 		public void Disconnect()
 		{
-			session?.Disconnect();
-			tcp?.Dispose();
+			if (tcp != null)
+			{
+				session?.Disconnect();
+				tcp?.Dispose();
+				tcp = null;
+			}
 		}
 
 		public Bucket Send(IMessage message)

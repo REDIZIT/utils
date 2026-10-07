@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Net.Sockets;
 using System.Threading;
@@ -11,7 +12,7 @@ namespace RTS
 	{
 		public string id;
 		
-		private TcpClient tcp;
+		private TcpClient? tcp;
 		private Action<ClientSession> onDisconnected;
 		private CancellationTokenSource cts = new();
 
@@ -57,7 +58,7 @@ namespace RTS
 		{
 			try
 			{
-				NetworkStream stream = tcp.GetStream();
+				NetworkStream stream = tcp!.GetStream();
 				AsyncBinaryWriter w = new(stream, token);
 		        int maxPartSize = 5 * 1024; // 5 KB
 
@@ -108,6 +109,10 @@ namespace RTS
 		            }
 		        }
 			}
+			catch (IOException)
+			{
+				Disconnect();
+			}
 			catch (Exception e)
 			{
 				logger.LogError($"Sending run failed. {e.GetType().Name}: '{e.Message}': {e.StackTrace}");
@@ -117,53 +122,57 @@ namespace RTS
 		
 		private async Task RunReceiving(CancellationToken token)
 		{
-		    try
-		    {
-			    NetworkStream stream = tcp.GetStream();
-			    AsyncBinaryReader r = new(stream, token);
-			    
-		        while (!token.IsCancellationRequested && tcp.Connected)
-		        {
-			        MessageType type = (MessageType)await r.ReadByte();
-			        int bucketID = await r.ReadInt();
+			try
+			{
+				NetworkStream stream = tcp!.GetStream();
+				AsyncBinaryReader r = new(stream, token);
 
-			        if (type == MessageType.BucketCreate)
-			        {
-				        int bucketSize = await r.ReadInt();
-				        Bucket bucket = buckets.Allocate(bucketID, bucketSize);
-				        bucket.state = Bucket.State.Receiving;
-			        }
-			        else if (type == MessageType.BucketPart)
-			        {
-				        int partSize = await r.ReadInt();
-				        byte[] partBytes = await r.ReadBytes(partSize);
-				        Bucket bucket = buckets.Write(bucketID, partBytes);
-				        if (bucket.BytesToEnd <= 0)
-				        {
-					        bucket.state = Bucket.State.Received;
-					        SetDirty();
-    
-					        IMessage message = serializer.Deserialize(bucket.bytes);
-					        onMessageReceived?.Invoke(this, message);
-				        }
-			        }
-			        else if (type == MessageType.BucketReceived)
-			        {
-				        if (buckets.TryFree(bucketID) == false)
-				        {
-					        throw new($"Failed to free remotely received bucket {bucketID}");
-				        }
-			        }
-			        else
-			        {
-				        throw new($"Unknown MessageType: {type}");
-			        }
-		        }
-		    }
-		    catch (OperationCanceledException)
-		    {
-		        // Штатная отмена токена
-		    }
+				while (!token.IsCancellationRequested && tcp.Connected)
+				{
+					MessageType type = (MessageType)await r.ReadByte();
+					int bucketID = await r.ReadInt();
+
+					if (type == MessageType.BucketCreate)
+					{
+						int bucketSize = await r.ReadInt();
+						Bucket bucket = buckets.Allocate(bucketID, bucketSize);
+						bucket.state = Bucket.State.Receiving;
+					}
+					else if (type == MessageType.BucketPart)
+					{
+						int partSize = await r.ReadInt();
+						byte[] partBytes = await r.ReadBytes(partSize);
+						Bucket bucket = buckets.Write(bucketID, partBytes);
+						if (bucket.BytesToEnd <= 0)
+						{
+							bucket.state = Bucket.State.Received;
+							SetDirty();
+
+							IMessage message = serializer.Deserialize(bucket.bytes);
+							onMessageReceived?.Invoke(this, message);
+						}
+					}
+					else if (type == MessageType.BucketReceived)
+					{
+						if (buckets.TryFree(bucketID) == false)
+						{
+							throw new($"Failed to free remotely received bucket {bucketID}");
+						}
+					}
+					else
+					{
+						throw new($"Unknown MessageType: {type}");
+					}
+				}
+			}
+			catch (OperationCanceledException)
+			{
+				// Штатная отмена токена
+			}
+			catch (IOException)
+			{
+				Disconnect();
+			}
 		    catch (Exception e)
 		    {
 			    logger.LogError($"Receive run failed. {e.GetType().Name}: '{e.Message}': {e.StackTrace}");
@@ -176,11 +185,16 @@ namespace RTS
 
 		public void Disconnect()
 		{
-			logger.LogDebug("Session disconnected");
+			if (tcp != null)
+			{
+				logger.LogDebug("Session disconnected");
 			
-			cts?.Cancel();
-			tcp?.Dispose();
-			onDisconnected?.Invoke(this);
+				cts?.Cancel();
+				tcp?.Dispose();
+				tcp = null;
+
+				onDisconnected?.Invoke(this);
+			}
 		}
 		
 		private Bucket NextBucket()
