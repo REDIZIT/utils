@@ -1,6 +1,4 @@
-﻿using System.IO;
-
-namespace RTS
+﻿namespace RTS
 {
 	public interface IMessage
 	{
@@ -8,43 +6,37 @@ namespace RTS
 		void Read(MessageReader r);
 	}
 
-	public class TestMessage : IMessage, ITrackableMessage
+	public class TestMessage : IMessage
 	{
 		public string message;
-		public int RequestID { get; set; }
 
 		public void Write(MessageWriter w)
 		{
 			w.Write(message);
-			w.Write(RequestID);
 		}
 
 		public void Read(MessageReader r)
 		{
 			message = r.ReadString();
-			RequestID = r.ReadInt32();
 		}
 	}
 
-	public class TestResponse : IMessage, ITrackableMessage
+	public class TestResponse : IMessage
 	{
 		public string response;
-		public int RequestID { get; set; }
 		
 		public void Write(MessageWriter w)
 		{
 			w.Write(response);
-			w.Write(RequestID);
 		}
 
 		public void Read(MessageReader r)
 		{
 			response = r.ReadString();
-			RequestID = r.ReadInt32();
 		}
 	}
 	
-	public class TestHeavyRequest : IMessage, ITrackableMessage
+	public class TestHeavyRequest : IMessage
 	{
 		public int RequestID { get; set; }
 		public string shortMessage;
@@ -65,26 +57,18 @@ namespace RTS
 		}
 	}
 
-	public class TestHeavyResponse : IMessage, ITrackableMessage
+	public class TestHeavyResponse : IMessage
 	{
-		public int RequestID { get; set; }
 		public string shortResponse;
 
 		public void Write(MessageWriter w)
 		{
-			w.Write(RequestID);
 			w.Write(shortResponse);
 		}
 
 		public void Read(MessageReader r)
 		{
-			RequestID = r.ReadInt32();
 			shortResponse = r.ReadString();
 		}
-	}
-
-	public interface ITrackableMessage
-	{
-		int RequestID { get; }
 	}
 }

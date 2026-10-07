@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net.Sockets;
 using System.Threading.Tasks;
@@ -52,26 +53,31 @@ namespace RTS
 			}
 		}
 
-		public Bucket Send(IMessage message)
+		public Bucket Send(IMessage message, Dictionary<string, string> meta)
 		{
-			return session.Send(message);
+			return session.Send(message, meta);
 		}
 
-		public async Task<TResponse> Send<TRequest, TResponse>(TRequest request) where TRequest : IMessage, ITrackableMessage where TResponse : ITrackableMessage
+		public async Task<TResponse> Send<TRequest, TResponse>(TRequest request) where TRequest : IMessage where TResponse : IMessage
 		{
-			Task<ITrackableMessage> responseAwaitTask = table.RegisterRequest(request);
-			Send(request);
-			ITrackableMessage response = await responseAwaitTask.ConfigureAwait(false);
+			table.RegisterRequest(out Task<IMessage> task, out int requestID);
+
+			Dictionary<string, string> meta = new();
+			meta["REQUEST_ID"] = requestID.ToString();
+			
+			Send(request, meta);
+			
+			IMessage response = await task.ConfigureAwait(false);
 			return (TResponse)response;
 		}
 
-		private void OnMessageReceived(ClientSession session, IMessage message)
+		private void OnMessageReceived(ClientSession session, IMessage message, Dictionary<string, string> meta)
 		{
 			onMessageReceived?.Invoke(message);
 
-			if (message is ITrackableMessage trackableMessage)
+			if (meta.TryGetValue("REQUEST_ID", out string requestID))
 			{
-				table.TryFireResponse(trackableMessage);
+				table.TryFireResponse(message, int.Parse(requestID));
 			}
 		}
 	}
