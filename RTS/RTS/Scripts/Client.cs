@@ -27,10 +27,10 @@ namespace RTS
 		{
 			try
 			{
-				tcp.SendBufferSize = 0;
+				// tcp.SendBufferSize = 0;
 				tcp.NoDelay = true;
 
-				await tcp.ConnectAsync(host, port);
+				await tcp.ConnectAsync(host, port).ConfigureAwait(false);;
 				
 				session = new(null, tcp, _ => onDisconnected?.Invoke(), logger, OnMessageReceived);
 				session.Start();
@@ -62,7 +62,7 @@ namespace RTS
 			logger.LogDebug($"Send.Send in {w1.ElapsedMilliseconds} ms");
 
 			Stopwatch w2 = Stopwatch.StartNew();
-			ITrackableMessage response = await responseAwaitTask;
+			ITrackableMessage response = await responseAwaitTask.ConfigureAwait(false);
 			logger.LogDebug($"Awaited in {w2.ElapsedMilliseconds} ms");
 			
 			return (TResponse)response;
